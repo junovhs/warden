@@ -15,8 +15,8 @@ path = "src/bin/warden.rs"
 
 # Binary 2: The Context Packer
 [[bin]]
-name = "glance"
-path = "src/bin/glance.rs"
+name = "knit"
+path = "src/bin/knit.rs"
 
 [dependencies]
 anyhow = "1.0"

@@ -10,8 +10,8 @@ use warden_core::filter::FileFilter;
 use warden_core::heuristics::HeuristicFilter;
 
 #[derive(Parser)]
-#[command(name = "glance")]
-#[command(about = "Context packer for LLMs. Dumps repo to stdout.")]
+#[command(name = "knit")]
+#[command(about = "Stitches atomic files into a single context. Dumps to stdout.")]
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
     /// Enable verbose logging (to stderr)
