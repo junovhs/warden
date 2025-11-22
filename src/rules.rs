@@ -36,8 +36,14 @@ impl RuleEngine {
     /// Returns error if file reading fails (though logic generally suppresses it).
     pub fn check_file(&self, path: &Path) -> Result<bool> {
         let Ok(content) = fs::read_to_string(path) else {
-            return Ok(true); // Skip binary/unreadable gracefully
+            return Ok(true);
         };
+
+        // 0. THE BYPASS (New Feature)
+        // If the AI writes this comment, Warden ignores the file.
+        if content.contains("// warden:ignore") || content.contains("# warden:ignore") {
+            return Ok(true);
+        }
 
         let mut passed = true;
         let filename = path.to_string_lossy();
