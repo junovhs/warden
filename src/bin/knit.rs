@@ -1,26 +1,24 @@
 use anyhow::Result;
 use clap::Parser;
-use std::fs::{self, File};
-use std::io::{self, BufWriter, Write};
+use colored::Colorize;
+use std::fmt::Write;
+use std::fs;
 
 use warden_core::config::{Config, GitMode};
 use warden_core::enumerate::FileEnumerator;
 use warden_core::filter::FileFilter;
 use warden_core::heuristics::HeuristicFilter;
+use warden_core::tokens::Tokenizer;
 
 #[derive(Parser)]
 #[command(name = "knit")]
 #[command(about = "Stitches atomic files into a single context file.")]
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
-    /// Output to stdout instead of context.txt
     #[arg(long, short)]
     stdout: bool,
-
-    /// Verbose logging
     #[arg(long, short)]
     verbose: bool,
-
     #[arg(long)]
     git_only: bool,
     #[arg(long)]
@@ -42,7 +40,6 @@ fn main() -> Result<()> {
         config.git_mode = GitMode::No;
     }
 
-    // NEW: Load the .wardenignore file to remove noise
     config.load_ignore_file();
     config.validate()?;
 
@@ -50,15 +47,12 @@ fn main() -> Result<()> {
         println!("🧶 Knitting repository...");
     }
 
-    // 1. Discovery
     let enumerator = FileEnumerator::new(config.clone());
     let raw_files = enumerator.enumerate()?;
 
-    // 2. Heuristics
     let heuristic_filter = HeuristicFilter::new();
     let heuristics_files = heuristic_filter.filter(raw_files);
 
-    // 3. Filtering
     let filter = FileFilter::new(config.clone())?;
     let target_files = filter.filter(heuristics_files);
 
@@ -66,44 +60,53 @@ fn main() -> Result<()> {
         eprintln!("📦 Packing {} files...", target_files.len());
     }
 
-    // 4. Output Setup
-    // We use Box<dyn Write> to switch between File and Stdout transparently
-    let writer: Box<dyn Write> = if cli.stdout {
-        Box::new(io::stdout())
-    } else {
-        Box::new(File::create("context.txt")?)
-    };
+    let mut full_context = String::with_capacity(100_000);
 
-    let mut buffer = BufWriter::new(writer);
-
-    for path in target_files {
+    for path in &target_files {
         let path_str = path.to_string_lossy();
 
         writeln!(
-            buffer,
+            full_context,
             "================================================================================"
-        )?;
-        writeln!(buffer, "FILE: {path_str}")?;
-        writeln!(
-            buffer,
-            "================================================================================"
-        )?;
+        )
+        .unwrap();
 
-        match fs::read_to_string(&path) {
+        writeln!(full_context, "FILE: {path_str}").unwrap();
+
+        writeln!(
+            full_context,
+            "================================================================================"
+        )
+        .unwrap();
+
+        match fs::read_to_string(path) {
             Ok(content) => {
-                writeln!(buffer, "{content}")?;
+                full_context.push_str(&content);
             }
             Err(e) => {
-                writeln!(buffer, "<ERROR READING FILE: {e}>")?;
+                writeln!(full_context, "<ERROR READING FILE: {e}>").unwrap();
             }
         }
-        writeln!(buffer, "\n")?;
+        full_context.push_str("\n\n");
     }
 
-    buffer.flush()?;
+    // Count tokens
+    let token_count = Tokenizer::count(&full_context);
 
-    if !cli.stdout {
+    if cli.stdout {
+        print!("{full_context}");
+        eprintln!(
+            "\n📊 Context Size: {} tokens",
+            token_count.to_string().yellow().bold()
+        );
+    } else {
+        fs::write("context.txt", &full_context)?;
         println!("✅ Generated 'context.txt'");
+        println!(
+            "📊 Context Size: {} tokens",
+            token_count.to_string().yellow().bold()
+        );
     }
+
     Ok(())
 }

@@ -29,9 +29,12 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let mut config = Config::new();
-    config.verbose = cli.verbose;
-    config.code_only = cli.code_only;
+    // Strict initialization using struct update syntax
+    let mut config = Config {
+        verbose: cli.verbose,
+        code_only: cli.code_only,
+        ..Config::default()
+    };
 
     if cli.git_only {
         config.git_mode = GitMode::Yes;
@@ -46,8 +49,9 @@ fn main() -> Result<()> {
     let enumerator = FileEnumerator::new(config.clone());
     let raw_files = enumerator.enumerate()?;
 
-    // Context: Detection (Just for logs)
-    let detector = Detector::new();
+    // Context: Detection
+    // Unit structs should be instantiated directly, not via ::default()
+    let detector = Detector;
     if let Ok(systems) = detector.detect_build_systems(&raw_files) {
         if !systems.is_empty() && config.verbose {
             let sys_list: Vec<String> = systems.iter().map(ToString::to_string).collect();
@@ -55,7 +59,8 @@ fn main() -> Result<()> {
         }
     }
 
-    let heuristic_filter = HeuristicFilter::new();
+    // Unit struct instantiation
+    let heuristic_filter = HeuristicFilter;
     let heuristics_files = heuristic_filter.filter(raw_files);
 
     let filter = FileFilter::new(config)?;
@@ -66,9 +71,12 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    println!("👮 Warden scanning {} files...", target_files.len());
+    println!(
+        "👮 Warden scanning {} files (AST + Token Analysis)...",
+        target_files.len()
+    );
 
-    let engine = RuleEngine::new();
+    let engine = RuleEngine::default();
     let mut total_failures = 0;
 
     for path in target_files {

@@ -6,12 +6,14 @@
 
 Warden is a local toolchain designed to enforce **Code With Intent (POT)**. It solves the "Context Drift" and "Hallucination" problems common in AI coding by enforcing strict structural discipline (Atomicity, Naming, Safety) before code is committed.
 
+**v0.2.0 Update:** Warden now uses **Tree-sitter** for structural AST analysis and **Tiktoken** for LLM-native limits. It no longer parses text; it parses logic.
+
 ## The Ecosystem
 
 This repository contains two binaries that share a single logic core:
 
-1.  **`warden` (The Enforcer):** A structural linter that rejects bloat, complexity, and unsafe code.
-2.  **`knit` (The Messenger):** A smart context-packer that serializes your repository for AI consumption, respecting Warden's filters automatically.
+1.  **`warden` (The Enforcer):** An AST-based linter that rejects bloat (tokens), complexity (naming), and unsafe code (scope analysis).
+2.  **`knit` (The Messenger):** A smart context-packer that serializes your repository for AI consumption, reporting exactly how many tokens you are feeding the model.
 
 ---
 
@@ -21,14 +23,14 @@ Warden does not check if your code works. It checks if your code is **maintainab
 
 ### The 3 Laws
 1.  **The Law of Atomicity (Anti-Bloat)**
-    *   **Rule:** No file may exceed **200 lines of code**.
-    *   **Goal:** Forces modularity. Small files fit in AI context windows perfectly and reduce regression errors.
+    *   **Rule:** No file may exceed **2000 Tokens** (approx. 200-250 lines of dense code).
+    *   **Goal:** Forces modularity based on **Attention Span**, not line count. LLMs degrade rapidly when context is flooded. Warden uses `cl100k_base` (GPT-4) tokenization to measure true cognitive load.
 2.  **The Law of Bluntness (Naming)**
     *   **Rule:** Function names must be **≤ 3 words** (e.g., `fetchUser` ✅, `fetchUserAndSaveToDb` ❌).
-    *   **Goal:** Enforces Single Responsibility Principle (SRP). If you can't name it simply, split it.
+    *   **Goal:** Enforces Single Responsibility Principle (SRP). If you can't name it simply, split it. *Now uses AST analysis to ignore comments and strings.*
 3.  **The Law of Paranoia (Safety)**
-    *   **Rule:** Logic files must contain explicit error handling (`Result`, `try/catch`, `Option`).
-    *   **Goal:** Prevents "Silent Failures."
+    *   **Rule:** Logic bodies must contain explicit error handling (`Result`, `try/catch`, `Option`, `match`).
+    *   **Goal:** Prevents "Silent Failures." *Warden verifies that safety mechanisms exist inside the function scope, not just in file comments.*
 
 ### Usage
 ```bash
@@ -51,11 +53,12 @@ warden -v
 
 ## 2. Knit (Context Packer)
 
-Knit is the bridge between your filesystem and the LLM. It stitches your "Atomic" files into a single text stream with clear headers.
+Knit is the bridge between your filesystem and the LLM. It stitches your "Atomic" files into a single text stream with clear headers and **calculates the token cost** of your context.
 
 ### Features
+*   **Token Aware:** Reports exactly how many tokens your context consumes (e.g., `9487 tokens`), so you never exceed your model's window.
 *   **Smart Defaults:** Automatically strips noise (`node_modules`, `target`, `_assets`, `lockfiles`, `tests`, `docs`). You get the **Kernel** of the code, not the fluff.
-*   **Shared Brain:** Uses the exact same ignore logic as Warden.
+*   **Entropy Filtering:** Detects and rejects minified code or binary blobs disguised as text.
 *   **Security:** Filters out secrets (`.env`, keys) and binaries (`.png`, `.exe`) automatically.
 
 ### Usage
@@ -95,7 +98,7 @@ Requires Rust (`cargo`).
 # Clone and install globally
 git clone https://github.com/yourusername/warden.git
 cd warden
-cargo install --path .
+cargo install --path . --force
 ```
 
 **Recommended Shell Aliases:**
@@ -120,13 +123,13 @@ ROLE: High-Integrity Systems Architect.
 CONTEXT: You are coding inside a strict "Code With Intent" environment enforced by a binary linter called Warden.
 
 THE 3 LAWS (Non-Negotiable):
-1. LAW OF ATOMICITY (No Monoliths):
-   - Files MUST be < 200 Lines of Code.
+1. LAW OF ATOMICITY (Token Limits):
+   - Files MUST be < 2000 Tokens (~200 lines).
    - If a file grows too large, split it immediately.
    - React/UI: Split VIEW (Component.tsx) from LOGIC (useComponent.ts).
 
-2. LAW OF PARANOIA (Safety First):
-   - Functions MUST use explicit error handling (Result, try/catch, Option). No silent failures.
+2. LAW OF PARANOIA (Scope Safety):
+   - Logic Blocks MUST contain explicit error handling (Result, try/catch, Option) INSIDE the function body.
    - If a component is pure UI (visuals only), add "// warden:ignore" at the top.
 
 3. LAW OF BLUNTNESS (Naming):
