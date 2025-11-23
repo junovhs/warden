@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod checks;
 pub mod config;
 pub mod detection;
 pub mod enumerate;

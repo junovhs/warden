@@ -73,8 +73,8 @@ fn main() -> Result<()> {
     let mut full_context = String::with_capacity(100_000);
 
     match cli.format {
-        OutputFormat::Text => pack_text(&target_files, &mut full_context),
-        OutputFormat::Xml => pack_xml(&target_files, &mut full_context),
+        OutputFormat::Text => pack_text(&target_files, &mut full_context)?,
+        OutputFormat::Xml => pack_xml(&target_files, &mut full_context)?,
     }
 
     // Count tokens
@@ -102,39 +102,38 @@ fn normalize_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-fn pack_text(files: &[std::path::PathBuf], out: &mut String) {
+fn pack_text(files: &[std::path::PathBuf], out: &mut String) -> Result<()> {
     for path in files {
         let path_str = normalize_path(path);
         writeln!(
             out,
             "================================================================================"
-        )
-        .unwrap();
-        writeln!(out, "FILE: {path_str}").unwrap();
+        )?;
+        writeln!(out, "FILE: {path_str}")?;
         writeln!(
             out,
             "================================================================================"
-        )
-        .unwrap();
+        )?;
 
         match fs::read_to_string(path) {
             Ok(content) => {
                 out.push_str(&content);
             }
             Err(e) => {
-                writeln!(out, "<ERROR READING FILE: {e}>").unwrap();
+                writeln!(out, "<ERROR READING FILE: {e}>")?;
             }
         }
         out.push_str("\n\n");
     }
+    Ok(())
 }
 
-fn pack_xml(files: &[std::path::PathBuf], out: &mut String) {
-    writeln!(out, "<documents>").unwrap();
+fn pack_xml(files: &[std::path::PathBuf], out: &mut String) -> Result<()> {
+    writeln!(out, "<documents>")?;
     for path in files {
         let path_str = normalize_path(path);
         // Security: Open CDATA tag
-        writeln!(out, "  <document path=\"{path_str}\"><![CDATA[").unwrap();
+        writeln!(out, "  <document path=\"{path_str}\"><![CDATA[")?;
 
         match fs::read_to_string(path) {
             Ok(content) => {
@@ -143,11 +142,12 @@ fn pack_xml(files: &[std::path::PathBuf], out: &mut String) {
                 out.push_str(&safe_content);
             }
             Err(e) => {
-                writeln!(out, "ERROR READING FILE: {e}").unwrap();
+                writeln!(out, "ERROR READING FILE: {e}")?;
             }
         }
         // Security: Close CDATA tag
-        writeln!(out, "]]></document>").unwrap();
+        writeln!(out, "]]></document>")?;
     }
-    writeln!(out, "</documents>").unwrap();
+    writeln!(out, "</documents>")?;
+    Ok(())
 }

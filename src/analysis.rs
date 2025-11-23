@@ -1,5 +1,6 @@
+use crate::checks::{self, Violation};
 use crate::config::RuleConfig;
-use tree_sitter::{Node, Parser, Query, QueryCursor};
+use tree_sitter::{Parser, Query};
 
 pub struct Analyzer {
     rust_naming: Query,
@@ -26,8 +27,8 @@ impl Analyzer {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            rust_naming: Query::new(tree_sitter_rust::language(), "(function_item name: (identifier) @name)").unwrap(),
-            // Safety: Includes match, if let, while let, ?, and specific safety methods
+            rust_naming: Query::new(tree_sitter_rust::language(), "(function_item name: (identifier) @name)").expect("Invalid Rust naming query"),
+            // Safety: Includes match, if let, while let, ?, explicit safety methods, AND Result return types.
             rust_safety: Query::new(tree_sitter_rust::language(), r#"
                 (match_expression) @safe
                 (if_expression condition: (let_condition)) @safe
@@ -35,29 +36,31 @@ impl Analyzer {
                 (try_expression) @safe
                 (call_expression function: (field_expression field: (field_identifier) @m (#match? @m "^(expect|unwrap_or|unwrap_or_else|unwrap_or_default|ok|err|map_err|any|all|find|is_some|is_none|is_ok|is_err)$"))) @safe
                 (call_expression function: (identifier) @f (#match? @f "^(Ok|Err)$")) @safe
-            "#).unwrap(),
+                (function_item return_type: (_) @ret (#match? @ret "Result")) @safe
+            "#).expect("Invalid Rust safety query"),
             // Banned: Explicitly hunt for unwrap() calls
             rust_banned: Query::new(tree_sitter_rust::language(), r#"
                 (call_expression function: (field_expression field: (field_identifier) @m (#eq? @m "unwrap"))) @banned
-            "#).unwrap(),
+            "#).expect("Invalid Rust banned query"),
 
             js_naming: Query::new(tree_sitter_javascript::language(), r"
                 (function_declaration name: (identifier) @name)
                 (method_definition name: (property_identifier) @name)
                 (variable_declarator name: (identifier) @name value: [(arrow_function) (function_expression)])
-            ").unwrap(),
+            ").expect("Invalid JS naming query"),
             js_safety: Query::new(tree_sitter_javascript::language(), r#"
                 (try_statement) @safe
                 (call_expression function: (member_expression property: (property_identifier) @m (#eq? @m "catch"))) @safe
-            "#).unwrap(),
+            "#).expect("Invalid JS safety query"),
 
-            py_naming: Query::new(tree_sitter_python::language(), "(function_definition name: (identifier) @name)").unwrap(),
+            py_naming: Query::new(tree_sitter_python::language(), "(function_definition name: (identifier) @name)").expect("Invalid Python naming query"),
             // Python Safety: Specific checks for 'try', 'not ...', and comparisons against 'None'
-            py_safety: Query::new(tree_sitter_python::language(), r"
+            // Uses predicate (#eq? @op "not") instead of literal "not" to avoid QueryError in v0.20
+            py_safety: Query::new(tree_sitter_python::language(), r#"
                 (try_statement) @safe
-                (if_statement condition: (unary_operator operator: (not_operator))) @safe
+                (if_statement condition: (unary_operator (_) @op (#eq? @op "not"))) @safe
                 (if_statement condition: (comparison_operator (_) (none))) @safe
-            ").unwrap(),
+            "#).expect("Invalid Python safety query"),
         }
     }
 
@@ -104,115 +107,15 @@ impl Analyzer {
         let root = tree.root_node();
 
         let mut violations = Vec::new();
-        Self::check_naming(root, content, filename, naming_q, config, &mut violations);
-        Self::check_safety(root, content, safety_q, &mut violations);
+
+        // Delegated checks to `checks.rs` module
+        let _ = checks::check_naming(root, content, filename, naming_q, config, &mut violations);
+        let _ = checks::check_safety(root, content, safety_q, &mut violations);
 
         if let Some(bq) = banned_q {
-            Self::check_banned(root, content, bq, &mut violations);
+            let _ = checks::check_banned(root, content, bq, &mut violations);
         }
 
         violations
     }
-
-    fn check_naming(
-        root: Node,
-        source: &str,
-        filename: &str,
-        query: &Query,
-        config: &RuleConfig,
-        out: &mut Vec<Violation>,
-    ) {
-        let mut cursor = QueryCursor::new();
-        for m in cursor.matches(query, root, source.as_bytes()) {
-            let node = m.captures[0].node;
-            let name = node.utf8_text(source.as_bytes()).unwrap_or("?");
-
-            let word_count = if name.contains('_') {
-                name.split('_').count()
-            } else {
-                name.chars().filter(|c| c.is_uppercase()).count() + 1
-            };
-
-            let should_ignore = config.ignore_naming_on.iter().any(|p| filename.contains(p));
-
-            if word_count > config.max_function_words && !should_ignore {
-                out.push(Violation {
-                    row: node.start_position().row,
-                    message: format!(
-                        "Function '{name}' has {word_count} words (Max: {})",
-                        config.max_function_words
-                    ),
-                    law: "LAW OF BLUNTNESS",
-                });
-            }
-        }
-    }
-
-    fn check_safety(root: Node, source: &str, safety_query: &Query, out: &mut Vec<Violation>) {
-        let mut cursor = root.walk();
-        loop {
-            let node = cursor.node();
-            let kind = node.kind();
-
-            if (kind.contains("function") || kind.contains("method"))
-                && !Self::is_lifecycle(node, source)
-            {
-                let mut func_cursor = QueryCursor::new();
-                if func_cursor
-                    .matches(safety_query, node, source.as_bytes())
-                    .next()
-                    .is_none()
-                {
-                    let rows = node.end_position().row - node.start_position().row;
-                    if rows > 5 {
-                        out.push(Violation {
-                            row: node.start_position().row,
-                            message:
-                                "Logic block lacks structural safety (try/catch, match, Result, ?)."
-                                    .into(),
-                            law: "LAW OF PARANOIA",
-                        });
-                    }
-                }
-            }
-
-            if !cursor.goto_first_child() {
-                while !cursor.goto_next_sibling() {
-                    if !cursor.goto_parent() {
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    fn check_banned(root: Node, source: &str, banned_query: &Query, out: &mut Vec<Violation>) {
-        let mut cursor = QueryCursor::new();
-        for m in cursor.matches(banned_query, root, source.as_bytes()) {
-            let node = m.captures[0].node;
-            out.push(Violation {
-                row: node.start_position().row,
-                message: "Explicit 'unwrap()' call detected. Use 'expect', 'unwrap_or', or '?'."
-                    .into(),
-                law: "LAW OF PARANOIA",
-            });
-        }
-    }
-
-    fn is_lifecycle(node: Node, source: &str) -> bool {
-        if let Some(name_node) = node.child_by_field_name("name") {
-            let name = name_node.utf8_text(source.as_bytes()).unwrap_or("");
-            return matches!(
-                name,
-                "new" | "default" | "init" | "__init__" | "constructor" | "render" | "main"
-            );
-        }
-        false
-    }
-}
-
-pub struct Violation {
-    pub row: usize,
-    pub message: String,
-    pub law: &'static str,
 }

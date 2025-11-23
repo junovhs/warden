@@ -2,7 +2,8 @@ use std::sync::LazyLock;
 use tiktoken_rs::CoreBPE;
 
 // We use cl100k_base (GPT-4/3.5 turbo encoding) as the standard
-static BPE: LazyLock<CoreBPE> = LazyLock::new(|| tiktoken_rs::cl100k_base().unwrap());
+static BPE: LazyLock<CoreBPE> =
+    LazyLock::new(|| tiktoken_rs::cl100k_base().expect("Failed to load cl100k_base dictionary"));
 
 pub struct Tokenizer;
 
