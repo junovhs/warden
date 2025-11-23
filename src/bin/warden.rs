@@ -39,6 +39,8 @@ fn main() -> Result<()> {
         config.git_mode = GitMode::No;
     }
 
+    // Load the ignore file before validation/enumeration
+    config.load_ignore_file();
     config.validate()?;
 
     let enumerator = FileEnumerator::new(config.clone());

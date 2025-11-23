@@ -27,18 +27,37 @@ impl FileEnumerator {
                 if !Self::in_git_repo() {
                     return Err(WardenError::NotInGitRepo);
                 }
-                Self::git_ls_files()
+                // Fixed: Self::filter_paths
+                Ok(Self::filter_paths(Self::git_ls_files()?))
             }
             GitMode::No => Ok(self.walk_all_files()),
             GitMode::Auto => {
                 if Self::in_git_repo() {
                     if let Ok(files) = Self::git_ls_files() {
-                        return Ok(files);
+                        // Fixed: Self::filter_paths
+                        return Ok(Self::filter_paths(files));
                     }
                 }
                 Ok(self.walk_all_files())
             }
         }
+    }
+
+    // Fixed: Removed &self
+    fn filter_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+        paths
+            .into_iter()
+            .filter(|p| {
+                for part in p.components() {
+                    if let Some(s) = part.as_os_str().to_str() {
+                        if PRUNE_DIRS.contains(&s) {
+                            return false;
+                        }
+                    }
+                }
+                true
+            })
+            .collect()
     }
 
     fn in_git_repo() -> bool {
@@ -83,6 +102,7 @@ impl FileEnumerator {
 
         for item in walker.filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
+            // WalkDir filtering allows us to skip descending into "node_modules" entirely
             !PRUNE_DIRS.iter().any(|p| name == *p)
         }) {
             let entry = match item {

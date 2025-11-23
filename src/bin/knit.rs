@@ -1,9 +1,8 @@
 use anyhow::Result;
 use clap::Parser;
-use std::fs;
-use std::io::{self, Write};
+use std::fs::{self, File};
+use std::io::{self, BufWriter, Write};
 
-// Use the same core logic as Warden
 use warden_core::config::{Config, GitMode};
 use warden_core::enumerate::FileEnumerator;
 use warden_core::filter::FileFilter;
@@ -11,22 +10,21 @@ use warden_core::heuristics::HeuristicFilter;
 
 #[derive(Parser)]
 #[command(name = "knit")]
-#[command(about = "Stitches atomic files into a single context. Dumps to stdout.")]
+#[command(about = "Stitches atomic files into a single context file.")]
 #[allow(clippy::struct_excessive_bools)]
 struct Cli {
-    /// Enable verbose logging (to stderr)
+    /// Output to stdout instead of context.txt
+    #[arg(long, short)]
+    stdout: bool,
+
+    /// Verbose logging
     #[arg(long, short)]
     verbose: bool,
 
-    /// Force git-only mode
     #[arg(long)]
     git_only: bool,
-
-    /// Force no-git mode
     #[arg(long)]
     no_git: bool,
-
-    /// Only include code files
     #[arg(long)]
     code_only: bool,
 }
@@ -34,7 +32,6 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Setup identical to Warden
     let mut config = Config::new();
     config.verbose = cli.verbose;
     config.code_only = cli.code_only;
@@ -45,60 +42,68 @@ fn main() -> Result<()> {
         config.git_mode = GitMode::No;
     }
 
+    // NEW: Load the .wardenignore file to remove noise
+    config.load_ignore_file();
     config.validate()?;
 
-    // 1. Discovery
-    if config.verbose {
-        eprintln!("🔍 Enumerating files...");
+    if !cli.stdout {
+        println!("🧶 Knitting repository...");
     }
-    // We clone config here so we can use it again later
+
+    // 1. Discovery
     let enumerator = FileEnumerator::new(config.clone());
     let raw_files = enumerator.enumerate()?;
 
-    // 2. Heuristics (remove binaries)
+    // 2. Heuristics
     let heuristic_filter = HeuristicFilter::new();
     let heuristics_files = heuristic_filter.filter(raw_files);
 
-    // 3. Filtering (patterns/secrets)
-    // FIX: We clone config here too, so 'config' is still alive for the next line
+    // 3. Filtering
     let filter = FileFilter::new(config.clone())?;
     let target_files = filter.filter(heuristics_files);
 
-    if config.verbose {
+    if cli.verbose {
         eprintln!("📦 Packing {} files...", target_files.len());
     }
 
-    // 4. Output Loop (The "Glance" Format)
-    let mut stdout = io::stdout().lock();
+    // 4. Output Setup
+    // We use Box<dyn Write> to switch between File and Stdout transparently
+    let writer: Box<dyn Write> = if cli.stdout {
+        Box::new(io::stdout())
+    } else {
+        Box::new(File::create("context.txt")?)
+    };
+
+    let mut buffer = BufWriter::new(writer);
 
     for path in target_files {
         let path_str = path.to_string_lossy();
 
-        // Header
         writeln!(
-            stdout,
+            buffer,
             "================================================================================"
         )?;
-        writeln!(stdout, "FILE: {path_str}")?;
+        writeln!(buffer, "FILE: {path_str}")?;
         writeln!(
-            stdout,
+            buffer,
             "================================================================================"
         )?;
 
-        // Content
         match fs::read_to_string(&path) {
             Ok(content) => {
-                writeln!(stdout, "{content}")?;
+                writeln!(buffer, "{content}")?;
             }
             Err(e) => {
-                writeln!(stdout, "<ERROR READING FILE: {e}>")?;
+                writeln!(buffer, "<ERROR READING FILE: {e}>")?;
             }
         }
-        writeln!(stdout, "\n")?; // Extra spacing between files
+        writeln!(buffer, "\n")?;
     }
 
-    if cli.verbose {
-        eprintln!("✅ Done.");
+    buffer.flush()?;
+
+    if !cli.stdout {
+        println!("✅ Generated 'context.txt'");
     }
     Ok(())
 }
