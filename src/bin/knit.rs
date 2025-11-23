@@ -1,14 +1,21 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use colored::Colorize;
 use std::fmt::Write;
 use std::fs;
+use std::path::Path;
 
 use warden_core::config::{Config, GitMode};
 use warden_core::enumerate::FileEnumerator;
 use warden_core::filter::FileFilter;
 use warden_core::heuristics::HeuristicFilter;
 use warden_core::tokens::Tokenizer;
+
+#[derive(Debug, Clone, ValueEnum)]
+enum OutputFormat {
+    Text,
+    Xml,
+}
 
 #[derive(Parser)]
 #[command(name = "knit")]
@@ -25,6 +32,9 @@ struct Cli {
     no_git: bool,
     #[arg(long)]
     code_only: bool,
+    /// Output format (Text for standard, Xml for Claude/LLMs)
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    format: OutputFormat,
 }
 
 fn main() -> Result<()> {
@@ -40,7 +50,7 @@ fn main() -> Result<()> {
         config.git_mode = GitMode::No;
     }
 
-    config.load_ignore_file();
+    config.load_local_config();
     config.validate()?;
 
     if !cli.stdout {
@@ -62,32 +72,9 @@ fn main() -> Result<()> {
 
     let mut full_context = String::with_capacity(100_000);
 
-    for path in &target_files {
-        let path_str = path.to_string_lossy();
-
-        writeln!(
-            full_context,
-            "================================================================================"
-        )
-        .unwrap();
-
-        writeln!(full_context, "FILE: {path_str}").unwrap();
-
-        writeln!(
-            full_context,
-            "================================================================================"
-        )
-        .unwrap();
-
-        match fs::read_to_string(path) {
-            Ok(content) => {
-                full_context.push_str(&content);
-            }
-            Err(e) => {
-                writeln!(full_context, "<ERROR READING FILE: {e}>").unwrap();
-            }
-        }
-        full_context.push_str("\n\n");
+    match cli.format {
+        OutputFormat::Text => pack_text(&target_files, &mut full_context),
+        OutputFormat::Xml => pack_xml(&target_files, &mut full_context),
     }
 
     // Count tokens
@@ -109,4 +96,54 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn normalize_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn pack_text(files: &[std::path::PathBuf], out: &mut String) {
+    for path in files {
+        let path_str = normalize_path(path);
+        writeln!(
+            out,
+            "================================================================================"
+        )
+        .unwrap();
+        writeln!(out, "FILE: {path_str}").unwrap();
+        writeln!(
+            out,
+            "================================================================================"
+        )
+        .unwrap();
+
+        match fs::read_to_string(path) {
+            Ok(content) => {
+                out.push_str(&content);
+            }
+            Err(e) => {
+                writeln!(out, "<ERROR READING FILE: {e}>").unwrap();
+            }
+        }
+        out.push_str("\n\n");
+    }
+}
+
+fn pack_xml(files: &[std::path::PathBuf], out: &mut String) {
+    writeln!(out, "<documents>").unwrap();
+    for path in files {
+        let path_str = normalize_path(path);
+        writeln!(out, "  <document path=\"{path_str}\">").unwrap();
+
+        match fs::read_to_string(path) {
+            Ok(content) => {
+                out.push_str(&content);
+            }
+            Err(e) => {
+                writeln!(out, "    <!-- ERROR READING FILE: {e} -->").unwrap();
+            }
+        }
+        writeln!(out, "\n  </document>").unwrap();
+    }
+    writeln!(out, "</documents>").unwrap();
 }

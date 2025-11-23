@@ -3,7 +3,6 @@ use clap::Parser;
 use colored::Colorize;
 use std::process;
 
-// Use the shared library modules
 use warden_core::config::{Config, GitMode};
 use warden_core::detection::Detector;
 use warden_core::enumerate::FileEnumerator;
@@ -29,12 +28,10 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Strict initialization using struct update syntax
-    let mut config = Config {
-        verbose: cli.verbose,
-        code_only: cli.code_only,
-        ..Config::default()
-    };
+    // Strict initialization
+    let mut config = Config::new();
+    config.verbose = cli.verbose;
+    config.code_only = cli.code_only;
 
     if cli.git_only {
         config.git_mode = GitMode::Yes;
@@ -42,16 +39,15 @@ fn main() -> Result<()> {
         config.git_mode = GitMode::No;
     }
 
-    // Load the ignore file before validation/enumeration
-    config.load_ignore_file();
+    // Load local configuration (warden.toml / .wardenignore)
+    config.load_local_config();
     config.validate()?;
 
     let enumerator = FileEnumerator::new(config.clone());
     let raw_files = enumerator.enumerate()?;
 
     // Context: Detection
-    // Unit structs should be instantiated directly, not via ::default()
-    let detector = Detector;
+    let detector = Detector::new();
     if let Ok(systems) = detector.detect_build_systems(&raw_files) {
         if !systems.is_empty() && config.verbose {
             let sys_list: Vec<String> = systems.iter().map(ToString::to_string).collect();
@@ -59,11 +55,10 @@ fn main() -> Result<()> {
         }
     }
 
-    // Unit struct instantiation
-    let heuristic_filter = HeuristicFilter;
+    let heuristic_filter = HeuristicFilter::new();
     let heuristics_files = heuristic_filter.filter(raw_files);
 
-    let filter = FileFilter::new(config)?;
+    let filter = FileFilter::new(config.clone())?;
     let target_files = filter.filter(heuristics_files);
 
     if target_files.is_empty() {
@@ -76,7 +71,8 @@ fn main() -> Result<()> {
         target_files.len()
     );
 
-    let engine = RuleEngine::default();
+    // Logic Engine with injected Config
+    let engine = RuleEngine::new(config);
     let mut total_failures = 0;
 
     for path in target_files {

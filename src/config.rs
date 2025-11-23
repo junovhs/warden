@@ -1,7 +1,45 @@
 use crate::error::Result;
 use regex::Regex;
+use serde::Deserialize;
 use std::fs;
 use std::path::Path;
+
+// --- CONFIG STRUCTURES ---
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RuleConfig {
+    #[serde(default = "default_max_tokens")]
+    pub max_file_tokens: usize,
+    #[serde(default = "default_max_words")]
+    pub max_function_words: usize,
+    #[serde(default)]
+    pub ignore_naming_on: Vec<String>,
+}
+
+impl Default for RuleConfig {
+    fn default() -> Self {
+        Self {
+            max_file_tokens: default_max_tokens(),
+            max_function_words: default_max_words(),
+            ignore_naming_on: Vec::new(),
+        }
+    }
+}
+
+const fn default_max_tokens() -> usize {
+    2000
+}
+const fn default_max_words() -> usize {
+    3
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct WardenToml {
+    #[serde(default)]
+    pub rules: RuleConfig,
+}
+
+// --- MAIN CONFIG ---
 
 #[derive(Debug, Clone)]
 pub enum GitMode {
@@ -17,6 +55,13 @@ pub struct Config {
     pub exclude_patterns: Vec<Regex>,
     pub code_only: bool,
     pub verbose: bool,
+    pub rules: RuleConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Config {
@@ -28,6 +73,7 @@ impl Config {
             exclude_patterns: Vec::new(),
             code_only: false,
             verbose: false,
+            rules: RuleConfig::default(),
         }
     }
 
@@ -41,33 +87,43 @@ impl Config {
         Ok(())
     }
 
-    pub fn load_ignore_file(&mut self) {
+    pub fn load_local_config(&mut self) {
+        self.load_ignore_file();
+        self.load_toml_config();
+    }
+
+    fn load_ignore_file(&mut self) {
         let ignore_path = Path::new(".wardenignore");
-        if ignore_path.exists() {
-            if let Ok(content) = fs::read_to_string(ignore_path) {
-                for line in content.lines() {
-                    let trimmed = line.trim();
-                    if trimmed.is_empty() || trimmed.starts_with('#') {
-                        continue;
-                    }
-                    if let Ok(re) = Regex::new(trimmed) {
-                        self.exclude_patterns.push(re);
-                    }
+        if let Ok(content) = fs::read_to_string(ignore_path) {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
                 }
+                if let Ok(re) = Regex::new(trimmed) {
+                    self.exclude_patterns.push(re);
+                }
+            }
+        }
+    }
+
+    fn load_toml_config(&mut self) {
+        let toml_path = Path::new("warden.toml");
+        if let Ok(content) = fs::read_to_string(toml_path) {
+            if let Ok(parsed) = toml::from_str::<WardenToml>(&content) {
+                self.rules = parsed.rules;
+                if self.verbose {
+                    println!("🔧 Loaded warden.toml configuration");
+                }
+            } else if self.verbose {
+                eprintln!("⚠️ Failed to parse warden.toml");
             }
         }
     }
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// THE "SMART PRUNE" LIST
+// Constants for automatic pruning (Smart Defaults)
 pub const PRUNE_DIRS: &[&str] = &[
-    // 1. Artifacts & Build Garbage
     ".git",
     "node_modules",
     "target",
@@ -75,55 +131,17 @@ pub const PRUNE_DIRS: &[&str] = &[
     "build",
     "out",
     "gen",
-    "generated",
     ".venv",
     "venv",
     ".tox",
-    ".cache",
     "__pycache__",
     "coverage",
     "vendor",
-    "third_party",
-    // 2. Lockfiles (Noise)
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "Cargo.lock",
-    "Gemfile.lock",
-    "composer.lock",
-    "poetry.lock",
-    // 3. Assets (Binary/Visual Noise)
-    "_assets",
-    "assets",
-    "static",
-    "public",
-    "media",
-    "images",
-    "img",
-    "fonts",
-    "icons",
-    "res",
-    "resources",
-    // 4. Context/Meta (Tests & Docs)
-    "tests",
-    "test",
-    "spec",
-    "__tests__",
-    "docs",
-    "doc",
-    "documentation",
-    "examples",
-    "samples",
 ];
 
-// Extensions that represent binary data or useless machine-generated text (like .map)
-pub const BIN_EXT_PATTERN: &str = r"(?i)\.(png|jpe?g|gif|svg|ico|icns|webp|woff2?|ttf|otf|pdf|mp4|mov|mkv|avi|mp3|wav|flac|zip|gz|bz2|xz|7z|rar|jar|csv|tsv|parquet|sqlite|db|bin|exe|dll|so|dylib|pdb|pkl|onnx|torch|tgz|zst|lock|log|map|min\.js|min\.css)$";
-
-// Credentials detection
-pub const SECRET_PATTERN: &str = r"(?i)(^\.?env(\..*)?$|/\.?env(\..*)?$|(^|/)(id_rsa(\.pub)?|id_ed25519(\.pub)?|.*\.(pem|p12|jks|keystore|pfx))$)";
-
-// Code extension regex (for --code-only mode)
-pub const CODE_EXT_PATTERN: &str = r"(?i)\.(c|h|cc|hh|cpp|hpp|rs|go|py|js|jsx|ts|tsx|java|kt|kts|rb|php|scala|cs|swift|m|mm|lua|sh|bash|zsh|fish|ps1|sql|html|xhtml|xml|xsd|xslt|yaml|yml|toml|ini|cfg|conf|json|ndjson|md|rst|tex|s|asm|cmake|gradle|proto|graphql|gql|nix|dart|scss|less|css)$";
-
-pub const CODE_BARE_PATTERN: &str =
-    r"(?i)(Makefile|Dockerfile|dockerfile|CMakeLists\.txt|BUILD|WORKSPACE)$";
+pub const BIN_EXT_PATTERN: &str =
+    r"(?i)\.(png|jpg|gif|svg|ico|webp|woff2?|ttf|pdf|mp4|zip|gz|tar|exe|dll|so|dylib|class|pyc)$";
+pub const SECRET_PATTERN: &str =
+    r"(?i)(^\.?env(\..*)?$|/\.?env(\..*)?$|(^|/)(id_rsa|id_ed25519|.*\.(pem|p12|key|pfx))$)";
+pub const CODE_EXT_PATTERN: &str = r"(?i)\.(rs|go|py|js|jsx|ts|tsx|java|c|cpp|h|hpp|cs|php|rb|sh|sql|html|css|scss|json|toml|yaml|md)$";
+pub const CODE_BARE_PATTERN: &str = r"(?i)(Makefile|Dockerfile|CMakeLists\.txt)$";

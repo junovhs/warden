@@ -16,7 +16,7 @@ impl FileFilter {
     ///
     /// # Errors
     ///
-    /// Returns error if regex compilation fails.
+    /// Returns an error if any of the regex patterns (binary extensions, secrets, or code patterns) fail to compile.
     pub fn new(config: Config) -> Result<Self> {
         let bin_ext_re = Regex::new(BIN_EXT_PATTERN)?;
         let secret_re = Regex::new(SECRET_PATTERN)?;
@@ -45,41 +45,50 @@ impl FileFilter {
     }
 
     fn should_keep(&self, path: &Path) -> bool {
-        let path_str = path.to_string_lossy().replace('\\', "/");
+        let s = path.to_string_lossy().replace('\\', "/");
 
-        if self.secret_re.is_match(&path_str) {
-            return false;
+        // Structural Safety: Explicit truth table matching
+        match (self.is_secret(&s), self.is_binary(&s), self.is_excluded(&s)) {
+            (true, _, _) | (_, true, _) | (_, _, true) => return false,
+            _ => {}
         }
 
-        if self.bin_ext_re.is_match(&path_str) {
-            return false;
+        match (self.is_included(&s), self.config.code_only) {
+            (false, _) => false,
+            (_, true) if !self.is_code(&s) => false,
+            _ => true,
         }
+    }
 
-        for pattern in &self.config.exclude_patterns {
-            if pattern.is_match(&path_str) {
-                return false;
-            }
+    fn is_secret(&self, path: &str) -> bool {
+        self.secret_re.is_match(path)
+    }
+
+    fn is_binary(&self, path: &str) -> bool {
+        self.bin_ext_re.is_match(path)
+    }
+
+    fn is_excluded(&self, path: &str) -> bool {
+        self.config
+            .exclude_patterns
+            .iter()
+            .any(|p| p.is_match(path))
+    }
+
+    fn is_included(&self, path: &str) -> bool {
+        self.config.include_patterns.is_empty()
+            || self
+                .config
+                .include_patterns
+                .iter()
+                .any(|p| p.is_match(path))
+    }
+
+    fn is_code(&self, path: &str) -> bool {
+        // Explicit structural safety for mixed option/regex logic
+        match (&self.code_ext_re, &self.code_bare_re) {
+            (Some(ext), Some(bare)) => ext.is_match(path) || bare.is_match(path),
+            _ => true,
         }
-
-        if !self.config.include_patterns.is_empty() {
-            let mut matched = false;
-            for pattern in &self.config.include_patterns {
-                if pattern.is_match(&path_str) {
-                    matched = true;
-                    break;
-                }
-            }
-            if !matched {
-                return false;
-            }
-        }
-
-        if let (Some(ext_re), Some(bare_re)) = (&self.code_ext_re, &self.code_bare_re) {
-            if !(ext_re.is_match(&path_str) || bare_re.is_match(&path_str)) {
-                return false;
-            }
-        }
-
-        true
     }
 }
