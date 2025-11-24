@@ -10,6 +10,16 @@ use std::path::Path;
 pub struct RuleConfig {
     #[serde(default = "default_max_tokens")]
     pub max_file_tokens: usize,
+
+    // The Law of Complexity (Smart Checks)
+    #[serde(default = "default_max_complexity")]
+    pub max_cyclomatic_complexity: usize,
+    #[serde(default = "default_max_depth")]
+    pub max_nesting_depth: usize,
+    #[serde(default = "default_max_args")]
+    pub max_function_args: usize,
+
+    // The Law of Bluntness (Legacy/Stylistic)
     #[serde(default = "default_max_words")]
     pub max_function_words: usize,
     #[serde(default)]
@@ -20,18 +30,31 @@ impl Default for RuleConfig {
     fn default() -> Self {
         Self {
             max_file_tokens: default_max_tokens(),
+            max_cyclomatic_complexity: default_max_complexity(),
+            max_nesting_depth: default_max_depth(),
+            max_function_args: default_max_args(),
             max_function_words: default_max_words(),
             ignore_naming_on: Vec::new(),
         }
     }
 }
 
+// --- DEFAULTS ---
 const fn default_max_tokens() -> usize {
     2000
 }
+const fn default_max_complexity() -> usize {
+    10
+} // Industry standard (Holzmann/McCabe)
+const fn default_max_depth() -> usize {
+    4
+} // Prevents "Arrow Code"
+const fn default_max_args() -> usize {
+    5
+} // Enforces Data Structures
 const fn default_max_words() -> usize {
     3
-}
+} // Enforces SRP
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct WardenToml {
@@ -82,7 +105,7 @@ impl Config {
     /// # Errors
     ///
     /// Currently always returns `Ok`. Reserved for future validation logic
-    /// that might return an error if configurations are invalid.
+    /// that might return an error if configurations are invalid (e.g., incompatible flags).
     pub fn validate(&self) -> Result<()> {
         Ok(())
     }
@@ -122,13 +145,10 @@ impl Config {
     }
 }
 
-// Constants for automatic pruning (Smart Defaults)
 pub const PRUNE_DIRS: &[&str] = &[
-    // Version Control
     ".git",
     ".svn",
     ".hg",
-    // Dependencies & Build Artifacts
     "node_modules",
     "target",
     "dist",
@@ -141,7 +161,6 @@ pub const PRUNE_DIRS: &[&str] = &[
     "__pycache__",
     "coverage",
     "vendor",
-    // Lockfiles (The fix for your specific problem)
     "Cargo.lock",
     "package-lock.json",
     "pnpm-lock.yaml",
@@ -149,16 +168,12 @@ pub const PRUNE_DIRS: &[&str] = &[
     "bun.lockb",
     "go.sum",
     "Gemfile.lock",
-    // Context Noise (Tests, Docs, Assets)
     "tests",
     "test",
     "spec",
     "docs",
     "examples",
-    "samples",
     "fixtures",
-    "assets",
-    "public",
 ];
 
 pub const BIN_EXT_PATTERN: &str =

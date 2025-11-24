@@ -13,13 +13,11 @@ use warden_core::rules::RuleEngine;
 
 const DEFAULT_TOML: &str = r#"# warden.toml
 [rules]
-# The Law of Atomicity: Keep files small.
 max_file_tokens = 2000
-
-# The Law of Bluntness: Keep names simple.
+max_cyclomatic_complexity = 10
+max_nesting_depth = 4
+max_function_args = 5
 max_function_words = 3
-
-# Exclusions for naming rules (e.g. tests often have long names)
 ignore_naming_on = ["tests", "spec"]
 "#;
 
@@ -36,8 +34,6 @@ struct Cli {
     no_git: bool,
     #[arg(long)]
     code_only: bool,
-
-    /// Initialize a default warden.toml configuration file
     #[arg(long)]
     init: bool,
 }
@@ -45,49 +41,12 @@ struct Cli {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // 0. Init Mode
     if cli.init {
-        if std::path::Path::new("warden.toml").exists() {
-            println!("{}", "⚠️ warden.toml already exists.".yellow());
-            return Ok(());
-        }
-        fs::write("warden.toml", DEFAULT_TOML)?;
-        println!("{}", "✅ Created warden.toml".green());
-        return Ok(());
+        return handle_init();
     }
 
-    // 1. Setup & Validation
-    let mut config = Config::new();
-    config.verbose = cli.verbose;
-    config.code_only = cli.code_only;
-
-    if cli.git_only {
-        config.git_mode = GitMode::Yes;
-    } else if cli.no_git {
-        config.git_mode = GitMode::No;
-    }
-
-    // Load local configuration (warden.toml / .wardenignore)
-    config.load_local_config();
-    config.validate()?;
-
-    let enumerator = FileEnumerator::new(config.clone());
-    let raw_files = enumerator.enumerate()?;
-
-    // Context: Detection
-    let detector = Detector::new();
-    if let Ok(systems) = detector.detect_build_systems(&raw_files) {
-        if !systems.is_empty() && config.verbose {
-            let sys_list: Vec<String> = systems.iter().map(ToString::to_string).collect();
-            println!("🔎 Detected Ecosystem: [{}]", sys_list.join(", ").cyan());
-        }
-    }
-
-    let heuristic_filter = HeuristicFilter::new();
-    let heuristics_files = heuristic_filter.filter(raw_files);
-
-    let filter = FileFilter::new(config.clone())?;
-    let target_files = filter.filter(heuristics_files);
+    let config = initialize_config(&cli)?;
+    let target_files = run_scan(&config)?;
 
     if target_files.is_empty() {
         println!("No files to scan.");
@@ -99,7 +58,6 @@ fn main() -> Result<()> {
         target_files.len()
     );
 
-    // Logic Engine with injected Config
     let engine = RuleEngine::new(config);
     let mut total_failures = 0;
 
@@ -126,4 +84,50 @@ fn main() -> Result<()> {
         );
         process::exit(0);
     }
+}
+
+fn handle_init() -> Result<()> {
+    if std::path::Path::new("warden.toml").exists() {
+        println!("{}", "⚠️ warden.toml already exists.".yellow());
+    } else {
+        fs::write("warden.toml", DEFAULT_TOML)?;
+        println!("{}", "✅ Created warden.toml".green());
+    }
+    Ok(())
+}
+
+fn initialize_config(cli: &Cli) -> Result<Config> {
+    let mut config = Config::new();
+    config.verbose = cli.verbose;
+    config.code_only = cli.code_only;
+
+    if cli.git_only {
+        config.git_mode = GitMode::Yes;
+    } else if cli.no_git {
+        config.git_mode = GitMode::No;
+    }
+
+    config.load_local_config();
+    config.validate()?;
+    Ok(config)
+}
+
+fn run_scan(config: &Config) -> Result<Vec<std::path::PathBuf>> {
+    let enumerator = FileEnumerator::new(config.clone());
+    let raw_files = enumerator.enumerate()?;
+
+    // Optional: Detect ecosystem (informational)
+    let detector = Detector::new();
+    if let Ok(systems) = detector.detect_build_systems(&raw_files) {
+        if !systems.is_empty() && config.verbose {
+            let sys_list: Vec<String> = systems.iter().map(ToString::to_string).collect();
+            println!("🔎 Detected Ecosystem: [{}]", sys_list.join(", ").cyan());
+        }
+    }
+
+    let heuristic_filter = HeuristicFilter::new();
+    let heuristics_files = heuristic_filter.filter(raw_files);
+
+    let filter = FileFilter::new(config.clone())?;
+    Ok(filter.filter(heuristics_files))
 }
