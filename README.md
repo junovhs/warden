@@ -1,20 +1,77 @@
+
 # 🛡️ Warden Protocol
 
-**Architecture Governance based on NASA's "Power of 10".**
+**High-Integrity Architecture Governance for the AI Age.**
 
 > *"The rules are like the seat belts in a car: Initially, using them is perhaps a little uncomfortable, but after a while, it becomes second nature, and not using them is unimaginable."* — Gerard J. Holzmann
 
-Warden is a structural linter and "Architectural MRI" designed to enforce **High-Integrity Coding Standards**. It is a modern, multi-language adaptation of the **[NASA/JPL "Power of 10" Rules](https://web.eecs.umich.edu/~imarkov/10rules.pdf)** (Holzmann, 2006) for safety-critical software.
+Warden is a structural linter and "Architectural MRI" designed to enforce **NASA/JPL "Power of 10" Rules** in modern software projects.
 
-While originally designed for C, Warden adapts these principles for Rust, TypeScript, and Python to solve the "Context Drift" and "Complexity Creep" problems common in modern development (and AI-assisted workflows).
+While originally designed for safety-critical C code, Warden adapts these principles for **Rust, TypeScript, and Python** to solve the "Complexity Creep" and "Context Drift" problems that plague AI-assisted development.
 
-**v0.4.0 Update:** Now featuring a TUI Dashboard, Cyclomatic Complexity analysis, and a unified "Super Command" system.
+**v0.5.0 Update:** Introducing `warden apply`, the "Spartan Complexity" engine, and "Smart Paranoia".
+
+---
+
+## ⚡ The 3 Laws (Spartan Edition)
+
+Warden uses **Tree-sitter** to parse the AST and enforce strict architectural boundaries. These are not guidelines; they are constraints designed to keep code AI-readable.
+
+### 1. The Law of Atomicity (Holzmann Rule 4)
+*   **Rule:** Files must be < **2000 Tokens**.
+*   **Rationale:** AI context windows degrade in quality as size increases. Small files ensure deterministic generation and easy verification.
+*   **Action:** If a file grows too large, Warden forces a split immediately.
+
+### 2. The Law of Complexity (Holzmann Rules 1 & 2)
+*   **Cyclomatic Complexity:** Max **4**. (Standard is 10. Warden is "Spartan").
+*   **Nesting Depth:** Max **2**. (No "Arrow Code").
+*   **Arity:** Max **5** arguments. (Enforces Data Structures).
+*   **Rationale:** *"Simpler control flow translates into stronger capabilities for analysis."* If you cannot read a function in one breath, it is too complex.
+
+### 3. The Law of Paranoia (Smart Safety)
+*   **Fallibility:** Functions performing I/O, parsing, or syscalls **MUST** return `Result`.
+*   **Infallibility:** Pure logic and UI rendering should rely on the Type System (don't lie to the compiler).
+*   **Zero Tolerance:** No `.unwrap()` or `.expect()` allowed. **Ever.**
+
+---
+
+## 🔄 The Cybernetic Workflow
+
+Warden isn't just a linter; it's a closed-loop system for AI development.
+
+### 1. Context (`knit`)
+Generates a high-signal context file optimized for LLM ingestion.
+```bash
+knit --prompt --format xml
+```
+*   **Smart Filtering:** Strips lockfiles/binaries.
+*   **Token Budget:** Calculates exact context usage.
+*   **System Prompt:** Bakes the Warden Protocol instructions directly into the context.
+
+### 2. Generation (AI)
+You paste the context into your LLM (Claude, GPT-4, Gemini). It generates code.
+
+### 3. Application (`warden apply`)
+**Stop copy-pasting files manually.**
+Copy the AI's entire response to your clipboard and run:
+```bash
+warden apply
+```
+*   **Parses:** Extracts files from XML tags or Markdown blocks.
+*   **Validates:** Checks the `<delivery>` manifest against actual files.
+*   **Safeguards:** Uses atomic writes and creates backups in `.warden_apply_backup/`.
+
+### 4. Verification (`warden check`)
+The "God Command" that runs your language linter AND Warden's structural checks.
+```bash
+warden check
+```
 
 ---
 
 ## 📸 The Architectural MRI (TUI)
 
-Warden includes a hardware-accelerated TUI to visualize codebase health in real-time.
+Visualize codebase health in real-time.
 
 ```bash
 warden --ui
@@ -24,49 +81,34 @@ warden --ui
   <img src="assets/screenshot.png" alt="Warden TUI Dashboard" width="700">
 </p>
 
-It features:
-*   **Heatmap List:** Instantly spot complex files (Yellow) or violating files (Red).
-*   **Mini-Gauges:** Inline visualization of file size vs. token budget.
-*   **Compliance Stress:** A metric derived from the density of violations in a file.
-
-
 ---
 
-## ⚡ The 3 Laws (Adapted from Holzmann)
+## 🛠️ Configuration
 
-Warden uses **Tree-sitter** to parse the AST and enforce:
+Warden works for **Polyglot** projects. It acts as the General, delegating syntax checks to language-specific Lieutenants.
 
-### 1. The Law of Atomicity (Holzmann Rule 4)
-*   **Rule:** No file may exceed **2000 Tokens** (approx. 60-100 logical statements).
-*   **Original Rationale:** *"Each function should be a logical unit... verifiable as a unit."*
-*   **Modern Benefit:** Forces modularity and ensures AI context windows remain high-signal.
+Run `warden --init` to generate a `warden.toml`.
 
-### 2. The Law of Complexity (Holzmann Rules 1 & 2)
-*   **Cyclomatic Complexity:** Max **10**. (Simple control flow).
-*   **Nesting Depth:** Max **4**. (No "Arrow Code").
-*   **Arity:** Max **5** arguments. (Enforces Data Structures).
-*   **Original Rationale:** *"Simpler control flow translates into stronger capabilities for analysis."*
+**For Web/TypeScript (using Biome):**
+```toml
+[rules]
+max_file_tokens = 2000
+max_cyclomatic_complexity = 10 # TS usually needs more breathing room than Rust
+max_nesting_depth = 4
 
-### 3. The Law of Paranoia (Holzmann Rules 5, 7, & 10)
-*   **Rule:** Logic bodies must contain explicit error handling (`Result`, `try/catch`).
-*   **Rule:** No `unwrap()` allowed. Zero Warnings tolerated.
-*   **Original Rationale:** *"The odds of intercepting defects increase significantly with increasing assertion density."*
-
----
-
-## 🚀 The "God Command"
-
-Warden acts as a pipeline runner to enforce **Rule 10** (Pedantic Compilation).
-
-**One command to rule them all:**
-```bash
-warden check
+[commands]
+# Warden runs this first. If it fails, Warden fails.
+check = "npx @biomejs/biome check src/"
 ```
 
-*Configured in `warden.toml`:*
+**For Rust (Strict):**
 ```toml
+[rules]
+max_file_tokens = 2000
+max_cyclomatic_complexity = 4
+max_nesting_depth = 2
+
 [commands]
-# Runs Clippy Pedantic -> If Pass -> Runs Warden Scan
 check = "cargo clippy --all-targets -- -D warnings -D clippy::pedantic"
 ```
 
@@ -76,36 +118,6 @@ check = "cargo clippy --all-targets -- -D warnings -D clippy::pedantic"
 
 ```bash
 cargo install --path . --force
-```
-
-## 🛠️ Configuration
-
-Run `warden --init` to generate a `warden.toml` with NASA-standard defaults.
-
-```toml
-[rules]
-max_file_tokens = 2000
-max_cyclomatic_complexity = 10
-max_nesting_depth = 4
-```
-
-## 🤖 The AI System Prompt
-
-To enforce these rules with LLMs/Agents:
-
-```text
-ROLE: High-Integrity Systems Architect (Standard: JPL/Holzmann).
-CONTEXT: You are coding inside a strict environment enforced by 'Warden'.
-
-THE 3 LAWS (Non-Negotiable):
-1. LAW OF ATOMICITY: Files < 200 Lines. Split VIEW from LOGIC.
-2. LAW OF COMPLEXITY: Nesting < 4. Args < 5. Complexity < 10.
-3. LAW OF PARANOIA: Validate inputs at Line 1. No unwrap(). Return Result<>.
-
-OPERATIONAL PROTOCOL:
-1. Scan: Read context.
-2. Generate: Output WHOLE FILES.
-3. Verify: "Will Warden reject this?"
 ```
 
 **License:** MIT
