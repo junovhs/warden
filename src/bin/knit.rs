@@ -89,16 +89,20 @@ fn generate_content(files: &[PathBuf], cli: &Cli, config: &Config) -> Result<Str
         write_header(&mut ctx, config)?;
     }
 
-    match cli.format {
-        OutputFormat::Text => pack_text(files, &mut ctx)?,
-        OutputFormat::Xml => pack_xml(files, &mut ctx)?,
-    }
+    write_body(files, &mut ctx, &cli.format)?;
 
     if cli.prompt {
         write_footer(&mut ctx, config)?;
     }
 
     Ok(ctx)
+}
+
+fn write_body(files: &[PathBuf], ctx: &mut String, format: &OutputFormat) -> Result<()> {
+    match format {
+        OutputFormat::Text => pack_text(files, ctx),
+        OutputFormat::Xml => pack_xml(files, ctx),
+    }
 }
 
 fn write_header(ctx: &mut String, config: &Config) -> Result<()> {

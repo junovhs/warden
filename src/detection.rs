@@ -64,26 +64,23 @@ fn check_cmake(path: &Path, set: &mut HashSet<BuildSystemType>) -> bool {
     false
 }
 
+const COMMON_CONFIGS: &[(&str, BuildSystemType)] = &[
+    ("Cargo.toml", BuildSystemType::Rust),
+    ("package.json", BuildSystemType::Node),
+    ("requirements.txt", BuildSystemType::Python),
+    ("pyproject.toml", BuildSystemType::Python),
+    ("Pipfile", BuildSystemType::Python),
+    ("go.mod", BuildSystemType::Go),
+    ("CMakeLists.txt", BuildSystemType::CMake),
+    ("conanfile.txt", BuildSystemType::Conan),
+    ("conanfile.py", BuildSystemType::Conan),
+];
+
 fn check_common(name: &str, set: &mut HashSet<BuildSystemType>) {
-    match name {
-        "Cargo.toml" => {
-            set.insert(BuildSystemType::Rust);
+    for (file, sys) in COMMON_CONFIGS {
+        if name == *file {
+            set.insert(*sys);
+            return;
         }
-        "package.json" => {
-            set.insert(BuildSystemType::Node);
-        }
-        "requirements.txt" | "pyproject.toml" | "Pipfile" => {
-            set.insert(BuildSystemType::Python);
-        }
-        "go.mod" => {
-            set.insert(BuildSystemType::Go);
-        }
-        "CMakeLists.txt" => {
-            set.insert(BuildSystemType::CMake);
-        }
-        "conanfile.txt" | "conanfile.py" => {
-            set.insert(BuildSystemType::Conan);
-        }
-        _ => {}
     }
 }

@@ -3,7 +3,7 @@ use crate::config::RuleConfig;
 use crate::metrics;
 use crate::types::Violation;
 use anyhow::Result;
-use tree_sitter::{Node, Query, QueryCursor};
+use tree_sitter::{Node, Query, QueryCursor, TreeCursor};
 
 pub struct CheckContext<'a> {
     pub root: Node<'a>,
@@ -120,7 +120,7 @@ fn validate_complexity(
 
 /// Checks for banned constructs.
 /// # Errors
-/// Returns `Ok` on success. Errors are reserved for future query failures.
+/// Returns `Ok`.
 #[allow(clippy::unnecessary_wraps)]
 pub fn check_banned(
     ctx: &CheckContext,
@@ -146,12 +146,20 @@ where
     let mut cursor = ctx.root.walk();
     loop {
         cb(cursor.node());
-        if !cursor.goto_first_child() {
-            while !cursor.goto_next_sibling() {
-                if !cursor.goto_parent() {
-                    return;
-                }
-            }
+        if !step_cursor(&mut cursor) {
+            break;
         }
     }
+}
+
+fn step_cursor(cursor: &mut TreeCursor) -> bool {
+    if cursor.goto_first_child() {
+        return true;
+    }
+    while !cursor.goto_next_sibling() {
+        if !cursor.goto_parent() {
+            return false;
+        }
+    }
+    true
 }

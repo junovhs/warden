@@ -93,13 +93,16 @@ fn build_header_line(health: f64, color: Color, info: &str) -> Line<'_> {
 }
 
 fn draw_main(f: &mut Frame, app: &App, area: Rect) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
-        .split(area);
-
+    let chunks = get_main_chunks(area);
     components::draw_file_list(f, app, chunks[0]);
     components::draw_inspector(f, app, chunks[1]);
+}
+
+fn get_main_chunks(area: Rect) -> std::rc::Rc<[Rect]> {
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)].as_ref())
+        .split(area)
 }
 
 fn draw_footer(f: &mut Frame, area: Rect) {

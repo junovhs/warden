@@ -32,12 +32,7 @@ impl Analyzer {
                 tree_sitter_rust::language(),
                 "(function_item name: (identifier) @name)",
             ),
-            rust_safety: q(
-                tree_sitter_rust::language(),
-                r"
-                (match_expression) @safe
-            ",
-            ),
+            rust_safety: q(tree_sitter_rust::language(), r"(match_expression) @safe"),
             rust_complexity: q(
                 tree_sitter_rust::language(),
                 r#"
@@ -64,9 +59,7 @@ impl Analyzer {
             ),
             js_safety: q(
                 tree_sitter_typescript::language_typescript(),
-                r"
-                (try_statement) @safe
-            ",
+                r"(try_statement) @safe",
             ),
             js_complexity: q(
                 tree_sitter_typescript::language_typescript(),
@@ -86,12 +79,7 @@ impl Analyzer {
                 tree_sitter_python::language(),
                 "(function_definition name: (identifier) @name)",
             ),
-            py_safety: q(
-                tree_sitter_python::language(),
-                r"
-                (try_statement) @safe
-            ",
-            ),
+            py_safety: q(tree_sitter_python::language(), r"(try_statement) @safe"),
             py_complexity: q(
                 tree_sitter_python::language(),
                 r"
@@ -113,23 +101,26 @@ impl Analyzer {
         content: &str,
         config: &RuleConfig,
     ) -> Vec<Violation> {
-        if let Some(queries) = self.select_language(lang) {
-            Self::run_analysis(queries, filename, content, config)
-        } else {
-            vec![]
-        }
+        let Some(queries) = self.select_language(lang) else {
+            return vec![];
+        };
+        Self::run_analysis(queries, filename, content, config)
     }
 
     fn select_language(
         &self,
         lang: &str,
     ) -> Option<(Language, &Query, &Query, &Query, Option<&Query>)> {
-        match lang {
-            "rs" => Some(self.queries_rust()),
-            "js" | "jsx" | "ts" | "tsx" => Some(self.queries_js()),
-            "py" => Some(self.queries_python()),
-            _ => None,
+        if lang == "rs" {
+            return Some(self.queries_rust());
         }
+        if matches!(lang, "js" | "jsx" | "ts" | "tsx") {
+            return Some(self.queries_js());
+        }
+        if lang == "py" {
+            return Some(self.queries_python());
+        }
+        None
     }
 
     fn queries_rust(&self) -> (Language, &Query, &Query, &Query, Option<&Query>) {
@@ -174,25 +165,29 @@ impl Analyzer {
         content: &str,
         config: &RuleConfig,
     ) -> Vec<Violation> {
+        let mut parser_instance = Parser::new();
+        let Ok(parser) = parser_instance.get_init(language) else {
+            return vec![];
+        };
+
+        let Some(tree) = parser.parse(content, None) else {
+            return vec![];
+        };
+
         let mut violations = Vec::new();
+        let ctx = CheckContext {
+            root: tree.root_node(),
+            source: content,
+            filename,
+            config,
+        };
 
-        if let Ok(parser) = Parser::new().get_init(language) {
-            if let Some(tree) = parser.parse(content, None) {
-                let ctx = CheckContext {
-                    root: tree.root_node(),
-                    source: content,
-                    filename,
-                    config,
-                };
+        checks::check_naming(&ctx, naming, &mut violations);
+        checks::check_safety(&ctx, safety, &mut violations);
+        checks::check_metrics(&ctx, complexity, &mut violations);
 
-                checks::check_naming(&ctx, naming, &mut violations);
-                checks::check_safety(&ctx, safety, &mut violations);
-                checks::check_metrics(&ctx, complexity, &mut violations);
-
-                if let Some(bq) = banned {
-                    let _ = checks::check_banned(&ctx, bq, &mut violations);
-                }
-            }
+        if let Some(bq) = banned {
+            let _ = checks::check_banned(&ctx, bq, &mut violations);
         }
 
         violations

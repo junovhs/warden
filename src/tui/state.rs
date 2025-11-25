@@ -80,21 +80,44 @@ impl App {
     ) -> Result<()> {
         while self.running {
             terminal.draw(|f| crate::tui::view::draw(f, self))?;
+            self.process_event()?;
+        }
+        Ok(())
+    }
 
-            if event::poll(Duration::from_millis(100))? {
-                if let Event::Key(key) = event::read()? {
-                    self.handle_input(key.code);
-                }
+    fn process_event(&mut self) -> Result<()> {
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                self.handle_input(key.code);
             }
         }
         Ok(())
     }
 
     fn handle_input(&mut self, code: KeyCode) {
+        if self.handle_nav(code) {
+            return;
+        }
+        self.handle_action(code);
+    }
+
+    fn handle_nav(&mut self, code: KeyCode) -> bool {
+        match code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.move_up();
+                true
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.move_down();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn handle_action(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('q') | KeyCode::Esc => self.running = false,
-            KeyCode::Up | KeyCode::Char('k') => self.move_up(),
-            KeyCode::Down | KeyCode::Char('j') => self.move_down(),
             KeyCode::Char('s') => self.cycle_sort(),
             KeyCode::Char('f') => self.toggle_filter(),
             _ => {}
