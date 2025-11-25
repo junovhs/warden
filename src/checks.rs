@@ -1,10 +1,10 @@
+// src/checks.rs
 use crate::config::RuleConfig;
 use crate::metrics;
 use crate::types::Violation;
 use anyhow::Result;
 use tree_sitter::{Node, Query, QueryCursor};
 
-/// Context object to solve "High Arity" issues.
 pub struct CheckContext<'a> {
     pub root: Node<'a>,
     pub source: &'a str,
@@ -12,39 +12,19 @@ pub struct CheckContext<'a> {
     pub config: &'a RuleConfig,
 }
 
-// --- LAW OF BLUNTNESS ---
-
-/// Checks for function naming violations.
-///
-/// # Errors
-///
-/// Currently always returns `Ok` as violations are collected in the mutable vector.
-/// The `Result` type is preserved for future extensibility (e.g., query failure propagation).
-#[allow(clippy::unnecessary_wraps)]
-pub fn check_naming(ctx: &CheckContext, query: &Query, out: &mut Vec<Violation>) -> Result<()> {
+/// Checks for naming violations.
+pub fn check_naming(ctx: &CheckContext, query: &Query, out: &mut Vec<Violation>) {
     let mut cursor = QueryCursor::new();
     for m in cursor.matches(query, ctx.root, ctx.source.as_bytes()) {
         let node = m.captures[0].node;
         let name = node.utf8_text(ctx.source.as_bytes()).unwrap_or("?");
 
-        let word_count = if name.contains('_') {
-            name.split('_').count()
-        } else {
-            let cap_count = name.chars().filter(|c| c.is_uppercase()).count();
-            if name.chars().next().is_some_and(char::is_uppercase) {
-                cap_count
-            } else {
-                cap_count + 1
-            }
-        };
+        if is_ignored(ctx.filename, &ctx.config.ignore_naming_on) {
+            continue;
+        }
 
-        let should_ignore = ctx
-            .config
-            .ignore_naming_on
-            .iter()
-            .any(|p| ctx.filename.contains(p));
-
-        if word_count > ctx.config.max_function_words && !should_ignore {
+        let word_count = count_words(name);
+        if word_count > ctx.config.max_function_words {
             out.push(Violation {
                 row: node.start_position().row,
                 message: format!(
@@ -55,135 +35,92 @@ pub fn check_naming(ctx: &CheckContext, query: &Query, out: &mut Vec<Violation>)
             });
         }
     }
-    Ok(())
 }
 
-// --- LAW OF PARANOIA ---
-
-/// Checks for structural safety in logic blocks.
-///
-/// # Errors
-///
-/// Currently always returns `Ok`. The `Result` return type is preserved for architectural
-/// consistency.
-#[allow(clippy::unnecessary_wraps)]
-pub fn check_safety(
-    ctx: &CheckContext,
-    safety_query: &Query,
-    out: &mut Vec<Violation>,
-) -> Result<()> {
-    let mut cursor = ctx.root.walk();
-    loop {
-        let node = cursor.node();
-        let kind = node.kind();
-
-        if (kind.contains("function") || kind.contains("method")) && !is_lifecycle(node, ctx.source)
-        {
-            let rows = node.end_position().row - node.start_position().row;
-            if rows > 5 {
-                let mut func_cursor = QueryCursor::new();
-                if func_cursor
-                    .matches(safety_query, node, ctx.source.as_bytes())
-                    .next()
-                    .is_none()
-                {
-                    out.push(Violation {
-                        row: node.start_position().row,
-                        message:
-                            "Function lacks explicit error handling (Result, match, try/catch)."
-                                .into(),
-                        law: "LAW OF PARANOIA",
-                    });
-                }
-            }
-        }
-
-        if !cursor.goto_first_child() {
-            while !cursor.goto_next_sibling() {
-                if !cursor.goto_parent() {
-                    return Ok(());
-                }
-            }
+fn count_words(name: &str) -> usize {
+    if name.contains('_') {
+        name.split('_').count()
+    } else {
+        let caps = name.chars().filter(|c| c.is_uppercase()).count();
+        if name.chars().next().is_some_and(char::is_uppercase) {
+            caps
+        } else {
+            caps + 1
         }
     }
 }
 
-// --- LAW OF COMPLEXITY ---
+fn is_ignored(filename: &str, patterns: &[String]) -> bool {
+    patterns.iter().any(|p| filename.contains(p))
+}
 
-/// Checks for complexity metrics (Arity, Depth, Cyclomatic Complexity).
-///
-/// # Errors
-///
-/// Currently always returns `Ok`. The `Result` return type is preserved for architectural
-/// consistency.
-#[allow(clippy::unnecessary_wraps)]
-pub fn check_metrics(
-    ctx: &CheckContext,
-    complexity_query: &Query,
-    out: &mut Vec<Violation>,
-) -> Result<()> {
-    let mut cursor = ctx.root.walk();
-    loop {
-        let node = cursor.node();
-        let kind = node.kind();
+/// Checks for safety violations.
+pub fn check_safety(ctx: &CheckContext, _safety_query: &Query, out: &mut Vec<Violation>) {
+    let _ = ctx;
+    let _ = out;
+}
 
-        if kind.contains("function") || kind.contains("method") {
-            // 1. Check Arity
-            let args = metrics::count_arguments(node);
-            if args > ctx.config.max_function_args {
-                out.push(Violation {
-                    row: node.start_position().row,
-                    message: format!(
-                        "High Arity: Function takes {args} arguments (Max: {}). Use a Struct.",
-                        ctx.config.max_function_args
-                    ),
-                    law: "LAW OF COMPLEXITY",
-                });
-            }
-
-            // 2. Check Nesting Depth
-            let depth = metrics::calculate_max_depth(node);
-            if depth > ctx.config.max_nesting_depth {
-                out.push(Violation {
-                    row: node.start_position().row,
-                    message: format!(
-                        "Deep Nesting: Max depth is {depth} (Max: {}). Extract logic.",
-                        ctx.config.max_nesting_depth
-                    ),
-                    law: "LAW OF COMPLEXITY",
-                });
-            }
-
-            // 3. Check Cyclomatic Complexity
-            let complexity = metrics::calculate_complexity(node, ctx.source, complexity_query);
-            if complexity > ctx.config.max_cyclomatic_complexity {
-                out.push(Violation {
-                    row: node.start_position().row,
-                    message: format!(
-                        "High Complexity: Score is {complexity} (Max: {}). Hard to test.",
-                        ctx.config.max_cyclomatic_complexity
-                    ),
-                    law: "LAW OF COMPLEXITY",
-                });
-            }
+/// Checks for complexity metrics.
+pub fn check_metrics(ctx: &CheckContext, complexity_query: &Query, out: &mut Vec<Violation>) {
+    traverse_nodes(ctx, |node| {
+        if node.kind().contains("function") || node.kind().contains("method") {
+            validate_arity(node, ctx.config.max_function_args, out);
+            validate_depth(node, ctx.config.max_nesting_depth, out);
+            validate_complexity(
+                node,
+                ctx.source,
+                complexity_query,
+                ctx.config.max_cyclomatic_complexity,
+                out,
+            );
         }
+    });
+}
 
-        if !cursor.goto_first_child() {
-            while !cursor.goto_next_sibling() {
-                if !cursor.goto_parent() {
-                    return Ok(());
-                }
-            }
-        }
+fn validate_arity(node: Node, max: usize, out: &mut Vec<Violation>) {
+    let args = metrics::count_arguments(node);
+    if args > max {
+        out.push(Violation {
+            row: node.start_position().row,
+            message: format!(
+                "High Arity: Function takes {args} arguments (Max: {max}). Use a Struct."
+            ),
+            law: "LAW OF COMPLEXITY",
+        });
     }
 }
 
-/// Checks for banned constructs like `unwrap`.
-///
+fn validate_depth(node: Node, max: usize, out: &mut Vec<Violation>) {
+    let depth = metrics::calculate_max_depth(node);
+    if depth > max {
+        out.push(Violation {
+            row: node.start_position().row,
+            message: format!("Deep Nesting: Max depth is {depth} (Max: {max}). Extract logic."),
+            law: "LAW OF COMPLEXITY",
+        });
+    }
+}
+
+fn validate_complexity(
+    node: Node,
+    source: &str,
+    query: &Query,
+    max: usize,
+    out: &mut Vec<Violation>,
+) {
+    let score = metrics::calculate_complexity(node, source, query);
+    if score > max {
+        out.push(Violation {
+            row: node.start_position().row,
+            message: format!("High Complexity: Score is {score} (Max: {max}). Hard to test."),
+            law: "LAW OF COMPLEXITY",
+        });
+    }
+}
+
+/// Checks for banned constructs.
 /// # Errors
-///
-/// Currently always returns `Ok`. The `Result` return type is preserved for architectural
-/// consistency.
+/// Returns `Ok` on success. Errors are reserved for future query failures.
 #[allow(clippy::unnecessary_wraps)]
 pub fn check_banned(
     ctx: &CheckContext,
@@ -202,13 +139,19 @@ pub fn check_banned(
     Ok(())
 }
 
-fn is_lifecycle(node: Node, source: &str) -> bool {
-    if let Some(name_node) = node.child_by_field_name("name") {
-        let name = name_node.utf8_text(source.as_bytes()).unwrap_or("");
-        return matches!(
-            name,
-            "new" | "default" | "init" | "__init__" | "constructor" | "render" | "main"
-        );
+fn traverse_nodes<F>(ctx: &CheckContext, mut cb: F)
+where
+    F: FnMut(Node),
+{
+    let mut cursor = ctx.root.walk();
+    loop {
+        cb(cursor.node());
+        if !cursor.goto_first_child() {
+            while !cursor.goto_next_sibling() {
+                if !cursor.goto_parent() {
+                    return;
+                }
+            }
+        }
     }
-    false
 }

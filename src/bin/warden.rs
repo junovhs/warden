@@ -1,3 +1,4 @@
+// src/bin/warden.rs
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -10,44 +11,26 @@ use std::fs;
 use std::io;
 use std::process::{self, Command};
 
+use warden_core::clipboard;
 use warden_core::config::{Config, GitMode};
 use warden_core::enumerate::FileEnumerator;
 use warden_core::filter::FileFilter;
 use warden_core::heuristics::HeuristicFilter;
 use warden_core::prompt::PromptGenerator;
+use warden_core::reporting;
 use warden_core::rules::RuleEngine;
 use warden_core::tui::state::App;
 use warden_core::types::ScanReport;
 
-const DEFAULT_TOML: &str = r#"# warden.toml
-[rules]
-max_file_tokens = 2000
-max_cyclomatic_complexity = 10
-max_nesting_depth = 4
-max_function_args = 5
-max_function_words = 3
-ignore_naming_on = ["tests", "spec"]
-
-[commands]
-check = "cargo clippy --all-targets -- -D warnings -D clippy::pedantic"
-"#;
-
 #[derive(Subcommand)]
 enum Commands {
-    /// Generate AI system prompt from warden.toml config
     Prompt {
-        /// Copy to clipboard (requires xclip/pbcopy/clip.exe)
         #[arg(long, short)]
         copy: bool,
-
-        /// Show short reminder version
         #[arg(long, short)]
         short: bool,
     },
-
-    /// Run configured command alias
     Run {
-        /// Command name from [commands] section
         name: String,
     },
 }
@@ -73,8 +56,6 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
-    /// Legacy: Run a configured command alias (e.g., 'check')
-    /// DEPRECATED: Use `warden run <name>` instead
     #[arg(index = 1)]
     legacy_command: Option<String>,
 }
@@ -83,164 +64,139 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     if cli.init {
-        return handle_init();
+        return init_config();
     }
 
-    let config = initialize_config(&cli)?;
+    let config = load_config(&cli)?;
 
-    // Handle subcommands
     if let Some(cmd) = &cli.command {
-        return match cmd {
-            Commands::Prompt { copy, short } => handle_prompt(&config, *copy, *short),
-            Commands::Run { name } => {
-                handle_run_command(&config, name);
-                Ok(())
-            }
-        };
+        return exec_subcommand(cmd, &config);
     }
 
-    // Legacy: Handle positional command argument
     if let Some(cmd_name) = &cli.legacy_command {
-        if let Some(cmd_str) = config.commands.get(cmd_name) {
-            println!(
-                "🚀 Running alias '{}': {}",
-                cmd_name.cyan().bold(),
-                cmd_str.yellow()
-            );
-
-            let mut parts = cmd_str.split_whitespace();
-            if let Some(prog) = parts.next() {
-                let status = Command::new(prog)
-                    .args(parts)
-                    .status()
-                    .unwrap_or_else(|_| process::exit(1));
-
-                if !status.success() {
-                    println!(
-                        "{}",
-                        "❌ Command failed. Aborting Warden scan.".red().bold()
-                    );
-                    process::exit(status.code().unwrap_or(1));
-                }
-                println!("{}", "✅ Command passed. Starting Warden scan...".green());
-            }
-        } else {
-            println!("⚠️ Unknown command alias: '{}'", cmd_name.yellow());
-        }
+        run_alias(&config, cmd_name);
     }
 
-    // Run Warden Scan
-    let target_files = run_scan_discovery(&config)?;
-    if target_files.is_empty() {
-        println!("No files to scan.");
-        return Ok(());
-    }
+    run_scan(&config, cli.ui)
+}
 
-    let engine = RuleEngine::new(config);
-    let report = engine.scan(target_files);
-
-    if cli.ui {
-        run_tui(report)?;
+fn init_config() -> Result<()> {
+    if std::path::Path::new("warden.toml").exists() {
+        println!("{}", "⚠️ warden.toml already exists.".yellow());
     } else {
-        print_report(&report)?;
-        if report.total_violations > 0 {
-            process::exit(1);
-        }
-    }
+        let default_toml = r#"# warden.toml
+[rules]
+max_file_tokens = 2000
+max_cyclomatic_complexity = 10
+max_nesting_depth = 4
+max_function_args = 5
+max_function_words = 3
+ignore_naming_on = ["tests", "spec"]
 
+[commands]
+check = "cargo clippy --all-targets -- -D warnings -D clippy::pedantic"
+"#;
+        fs::write("warden.toml", default_toml)?;
+        println!("{}", "✅ Created warden.toml".green());
+    }
     Ok(())
 }
 
-fn handle_prompt(config: &Config, copy: bool, short: bool) -> Result<()> {
-    let generator = PromptGenerator::new(config.rules.clone());
-
-    let output = if short {
-        generator.generate_reminder()
+fn load_config(cli: &Cli) -> Result<Config> {
+    let mut config = Config::new();
+    config.verbose = cli.verbose;
+    config.code_only = cli.code_only;
+    config.git_mode = if cli.git_only {
+        GitMode::Yes
+    } else if cli.no_git {
+        GitMode::No
     } else {
-        generator.wrap_header()
+        GitMode::Auto
+    };
+    config.load_local_config();
+    config.validate()?;
+    Ok(config)
+}
+
+fn exec_subcommand(cmd: &Commands, config: &Config) -> Result<()> {
+    match cmd {
+        Commands::Prompt { copy, short } => show_prompt(config, *copy, *short),
+        Commands::Run { name } => {
+            run_alias(config, name);
+            Ok(())
+        }
+    }
+}
+
+fn show_prompt(config: &Config, copy: bool, short: bool) -> Result<()> {
+    let generator = PromptGenerator::new(config.rules.clone());
+    let output = if short {
+        generator.generate_reminder()?
+    } else {
+        generator.wrap_header()?
     };
 
     if copy {
-        copy_to_clipboard(&output)?;
-        println!(
-            "{}",
-            "✅ Warden Protocol prompt copied to clipboard".green()
-        );
-        println!("   Paste into Claude/GPT system instructions");
+        clipboard::copy_to_clipboard(&output)?;
+        println!("{}", "✅ Copied to clipboard".green());
     } else {
         println!("{output}");
     }
-
     Ok(())
 }
 
-fn handle_run_command(config: &Config, cmd_name: &str) {
-    if let Some(cmd_str) = config.commands.get(cmd_name) {
-        println!(
-            "🚀 Running alias '{}': {}",
-            cmd_name.cyan().bold(),
-            cmd_str.yellow()
-        );
-
-        let mut parts = cmd_str.split_whitespace();
-        if let Some(prog) = parts.next() {
-            let status = Command::new(prog)
-                .args(parts)
-                .status()
-                .unwrap_or_else(|_| process::exit(1));
-
-            if !status.success() {
-                process::exit(status.code().unwrap_or(1));
-            }
-        }
+fn run_alias(config: &Config, name: &str) {
+    if let Some(cmd_str) = config.commands.get(name) {
+        println!("🚀 Running '{}': {}", name.cyan(), cmd_str.yellow());
+        execute_command_string(cmd_str);
     } else {
-        println!("⚠️ Unknown command alias: '{}'", cmd_name.yellow());
+        println!("⚠️ Unknown command: '{}'", name.yellow());
         process::exit(1);
     }
 }
 
-fn copy_to_clipboard(text: &str) -> Result<()> {
-    #[cfg(target_os = "macos")]
-    {
-        use std::io::Write;
-        let mut child = Command::new("pbcopy")
-            .stdin(std::process::Stdio::piped())
-            .spawn()?;
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(text.as_bytes())?;
-        }
-        child.wait()?;
-    }
+fn execute_command_string(cmd_str: &str) {
+    let mut parts = cmd_str.split_whitespace();
+    if let Some(prog) = parts.next() {
+        let status = Command::new(prog)
+            .args(parts)
+            .status()
+            .unwrap_or_else(|_| process::exit(1));
 
-    #[cfg(target_os = "linux")]
-    {
-        use std::io::Write;
-        let mut child = Command::new("xclip")
-            .args(["-selection", "clipboard"])
-            .stdin(std::process::Stdio::piped())
-            .spawn()?;
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(text.as_bytes())?;
+        if !status.success() {
+            process::exit(status.code().unwrap_or(1));
         }
-        child.wait()?;
     }
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::io::Write;
-        let mut child = Command::new("clip")
-            .stdin(std::process::Stdio::piped())
-            .spawn()?;
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(text.as_bytes())?;
-        }
-        child.wait()?;
-    }
-
-    Ok(())
 }
 
-fn run_tui(report: ScanReport) -> Result<()> {
+fn run_scan(config: &Config, use_ui: bool) -> Result<()> {
+    let files = discover_files(config)?;
+    if files.is_empty() {
+        println!("No files to scan.");
+        return Ok(());
+    }
+
+    let report = RuleEngine::new(config.clone()).scan(files);
+
+    if use_ui {
+        run_tui_app(report)
+    } else {
+        reporting::print_report(&report)?;
+        if report.total_violations > 0 {
+            process::exit(1);
+        }
+        Ok(())
+    }
+}
+
+fn discover_files(config: &Config) -> Result<Vec<std::path::PathBuf>> {
+    let raw = FileEnumerator::new(config.clone()).enumerate()?;
+    let heuristic = HeuristicFilter::new().filter(raw);
+    let filtered = FileFilter::new(config)?.filter(heuristic);
+    Ok(filtered)
+}
+
+fn run_tui_app(report: ScanReport) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -262,85 +218,4 @@ fn run_tui(report: ScanReport) -> Result<()> {
         println!("{err:?}");
     }
     Ok(())
-}
-
-#[allow(clippy::unnecessary_wraps)]
-fn print_report(report: &ScanReport) -> Result<()> {
-    let mut failures = 0;
-    for file in &report.files {
-        if !file.is_clean() {
-            failures += file.violations.len();
-            for v in &file.violations {
-                let filename = file.path.to_string_lossy();
-                let line_num = v.row + 1;
-                println!("{}: {}", "error".red().bold(), v.message.bold());
-                println!("  {} {}:{}:1", "-->".blue(), filename, line_num);
-                println!("   {}", "|".blue());
-                println!(
-                    "   {} {}: Action required",
-                    "=".blue().bold(),
-                    v.law.white().bold()
-                );
-                println!();
-            }
-        }
-    }
-
-    if failures > 0 {
-        println!(
-            "{}",
-            format!(
-                "❌ Warden found {failures} violations in {}ms.",
-                report.duration_ms
-            )
-            .red()
-            .bold()
-        );
-    } else {
-        println!(
-            "{}",
-            format!(
-                "✅ All Clear. Scanned {} tokens in {}ms.",
-                report.total_tokens, report.duration_ms
-            )
-            .green()
-            .bold()
-        );
-    }
-    Ok(())
-}
-
-fn handle_init() -> Result<()> {
-    if std::path::Path::new("warden.toml").exists() {
-        println!("{}", "⚠️ warden.toml already exists.".yellow());
-    } else {
-        fs::write("warden.toml", DEFAULT_TOML)?;
-        println!("{}", "✅ Created warden.toml".green());
-    }
-    Ok(())
-}
-
-fn initialize_config(cli: &Cli) -> Result<Config> {
-    let mut config = Config::new();
-    config.verbose = cli.verbose;
-    config.code_only = cli.code_only;
-
-    if cli.git_only {
-        config.git_mode = GitMode::Yes;
-    } else if cli.no_git {
-        config.git_mode = GitMode::No;
-    }
-
-    config.load_local_config();
-    config.validate()?;
-    Ok(config)
-}
-
-fn run_scan_discovery(config: &Config) -> Result<Vec<std::path::PathBuf>> {
-    let enumerator = FileEnumerator::new(config.clone());
-    let raw_files = enumerator.enumerate()?;
-    let heuristic_filter = HeuristicFilter::new();
-    let heuristics_files = heuristic_filter.filter(raw_files);
-    let filter = FileFilter::new(config.clone())?;
-    Ok(filter.filter(heuristics_files))
 }

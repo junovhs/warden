@@ -1,3 +1,4 @@
+// src/tui/view/layout.rs
 use crate::tui::state::{App, SortMode};
 use crate::tui::view::components;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
@@ -26,22 +27,43 @@ pub fn render_dashboard(f: &mut Frame, app: &App, area: Rect) {
 
 #[allow(clippy::cast_precision_loss)]
 fn draw_header(f: &mut Frame, app: &App, area: Rect) {
-    let clean_count = app.report.files.iter().filter(|f| f.is_clean()).count();
-    let total = app.report.files.len();
+    let (clean_count, total) = count_stats(app);
     let health = if total > 0 {
         (clean_count as f64 / total as f64) * 100.0
     } else {
         100.0
     };
+    let health_color = get_health_color(health);
 
-    let health_color = if health > 90.0 {
+    let info = build_info_string(app, total);
+    let line = build_header_line(health, health_color, &info);
+
+    f.render_widget(
+        Paragraph::new(line)
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center),
+        area,
+    );
+}
+
+fn count_stats(app: &App) -> (usize, usize) {
+    (
+        app.report.files.iter().filter(|f| f.is_clean()).count(),
+        app.report.files.len(),
+    )
+}
+
+fn get_health_color(health: f64) -> Color {
+    if health > 90.0 {
         Color::Green
     } else if health > 70.0 {
         Color::Yellow
     } else {
         Color::Red
-    };
+    }
+}
 
+fn build_info_string(app: &App, total: usize) -> String {
     let sort_str = match app.sort_mode {
         SortMode::Path => "NAME",
         SortMode::Tokens => "SIZE",
@@ -52,10 +74,11 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     } else {
         ""
     };
-    let info = format!(" FILES: {total} | SORT: {sort_str}{filter_str} ");
+    format!(" FILES: {total} | SORT: {sort_str}{filter_str} ")
+}
 
-    let block = Block::default().borders(Borders::ALL);
-    let line = Line::from(vec![
+fn build_header_line(health: f64, color: Color, info: &str) -> Line<'_> {
+    Line::from(vec![
         Span::styled(
             " 🛡️ WARDEN PROTOCOL ",
             Style::default()
@@ -63,20 +86,10 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::raw(" | "),
-        Span::styled(
-            format!("HEALTH: {health:.1}%"),
-            Style::default().fg(health_color),
-        ),
+        Span::styled(format!("HEALTH: {health:.1}%"), Style::default().fg(color)),
         Span::raw(" |"),
         Span::raw(info),
-    ]);
-
-    f.render_widget(
-        Paragraph::new(line)
-            .block(block)
-            .alignment(Alignment::Center),
-        area,
-    );
+    ])
 }
 
 fn draw_main(f: &mut Frame, app: &App, area: Rect) {

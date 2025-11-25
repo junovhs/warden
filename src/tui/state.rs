@@ -1,4 +1,6 @@
+// src/tui/state.rs
 use crate::types::{FileReport, ScanReport};
+use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode};
 use std::time::Duration;
 
@@ -11,9 +13,8 @@ pub enum SortMode {
 
 pub struct App {
     pub report: ScanReport,
-    /// Indices of files currently visible based on sort/filter
     pub view_indices: Vec<usize>,
-    pub selected_index: usize, // Index into view_indices, not report.files
+    pub selected_index: usize,
     pub running: bool,
     pub sort_mode: SortMode,
     pub only_violations: bool,
@@ -35,7 +36,6 @@ impl App {
     }
 
     fn update_view(&mut self) {
-        // 1. Filter
         let mut indices: Vec<usize> = self
             .report
             .files
@@ -45,20 +45,25 @@ impl App {
             .map(|(i, _)| i)
             .collect();
 
-        // 2. Sort
+        self.sort_indices(&mut indices);
+        self.view_indices = indices;
+        self.clamp_selection();
+    }
+
+    fn sort_indices(&self, indices: &mut [usize]) {
         let files = &self.report.files;
         indices.sort_by(|&a, &b| {
             let f1 = &files[a];
             let f2 = &files[b];
             match self.sort_mode {
                 SortMode::Path => f1.path.cmp(&f2.path),
-                SortMode::Tokens => f2.token_count.cmp(&f1.token_count), // Descending
-                SortMode::Violations => f2.violations.len().cmp(&f1.violations.len()), // Descending
+                SortMode::Tokens => f2.token_count.cmp(&f1.token_count),
+                SortMode::Violations => f2.violations.len().cmp(&f1.violations.len()),
             }
         });
+    }
 
-        self.view_indices = indices;
-        // Clamp selection
+    fn clamp_selection(&mut self) {
         if self.view_indices.is_empty() {
             self.selected_index = 0;
         } else if self.selected_index >= self.view_indices.len() {
@@ -66,32 +71,34 @@ impl App {
         }
     }
 
-    /// Runs the TUI loop.
-    ///
+    /// Runs TUI loop.
     /// # Errors
-    /// Returns error if event polling fails.
+    /// Returns error on IO failure.
     pub fn run<B: ratatui::backend::Backend>(
         &mut self,
         terminal: &mut ratatui::Terminal<B>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         while self.running {
             terminal.draw(|f| crate::tui::view::draw(f, self))?;
 
             if event::poll(Duration::from_millis(100))? {
                 if let Event::Key(key) = event::read()? {
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Esc => self.running = false,
-                        KeyCode::Up | KeyCode::Char('k') => self.move_up(),
-                        KeyCode::Down | KeyCode::Char('j') => self.move_down(),
-                        // Interaction
-                        KeyCode::Char('s') => self.cycle_sort(),
-                        KeyCode::Char('f') => self.toggle_filter(),
-                        _ => {}
-                    }
+                    self.handle_input(key.code);
                 }
             }
         }
         Ok(())
+    }
+
+    fn handle_input(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::Char('q') | KeyCode::Esc => self.running = false,
+            KeyCode::Up | KeyCode::Char('k') => self.move_up(),
+            KeyCode::Down | KeyCode::Char('j') => self.move_down(),
+            KeyCode::Char('s') => self.cycle_sort(),
+            KeyCode::Char('f') => self.toggle_filter(),
+            _ => {}
+        }
     }
 
     fn move_up(&mut self) {

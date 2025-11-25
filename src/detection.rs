@@ -1,3 +1,4 @@
+// src/detection.rs
 use crate::error::Result;
 use std::collections::HashSet;
 use std::fmt;
@@ -19,6 +20,7 @@ impl fmt::Display for BuildSystemType {
     }
 }
 
+#[derive(Default)]
 pub struct Detector;
 
 impl Detector {
@@ -27,70 +29,61 @@ impl Detector {
         Self
     }
 
-    /// Detects build systems in the file list.
-    ///
+    /// Detects build systems.
     /// # Errors
-    ///
-    /// Returns error if underlying detection logic fails.
+    /// Returns `Ok`.
     pub fn detect_build_systems(
         &self,
         files: &[std::path::PathBuf],
     ) -> Result<Vec<BuildSystemType>> {
         let mut detected = HashSet::new();
-
         for file in files {
-            if Self::is_cargo(file) {
-                detected.insert(BuildSystemType::Rust);
-            }
-            if Self::is_npm(file) {
-                detected.insert(BuildSystemType::Node);
-            }
-            if Self::is_python(file) {
-                detected.insert(BuildSystemType::Python);
-            }
-            if Self::is_go(file) {
-                detected.insert(BuildSystemType::Go);
-            }
-            if Self::is_cmake(file) {
-                detected.insert(BuildSystemType::CMake);
-            }
-            if Self::is_conan(file) {
-                detected.insert(BuildSystemType::Conan);
-            }
+            check_file(file, &mut detected);
         }
-
         Ok(detected.into_iter().collect())
-    }
-
-    fn is_cargo(path: &Path) -> bool {
-        path.ends_with("Cargo.toml")
-    }
-    fn is_npm(path: &Path) -> bool {
-        path.ends_with("package.json")
-    }
-    fn is_python(path: &Path) -> bool {
-        matches!(
-            path.file_name().and_then(|n| n.to_str()),
-            Some("requirements.txt" | "pyproject.toml" | "Pipfile")
-        )
-    }
-    fn is_go(path: &Path) -> bool {
-        path.ends_with("go.mod")
-    }
-    fn is_cmake(path: &Path) -> bool {
-        let s = path.to_string_lossy();
-        s.contains("CMakeLists.txt") || s.ends_with(".cmake")
-    }
-    fn is_conan(path: &Path) -> bool {
-        matches!(
-            path.file_name().and_then(|n| n.to_str()),
-            Some("conanfile.txt" | "conanfile.py")
-        )
     }
 }
 
-impl Default for Detector {
-    fn default() -> Self {
-        Self::new()
+fn check_file(path: &Path, set: &mut HashSet<BuildSystemType>) {
+    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+        if check_cmake(path, set) {
+            return;
+        }
+        check_common(name, set);
+    }
+}
+
+fn check_cmake(path: &Path, set: &mut HashSet<BuildSystemType>) -> bool {
+    if path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("cmake"))
+    {
+        set.insert(BuildSystemType::CMake);
+        return true;
+    }
+    false
+}
+
+fn check_common(name: &str, set: &mut HashSet<BuildSystemType>) {
+    match name {
+        "Cargo.toml" => {
+            set.insert(BuildSystemType::Rust);
+        }
+        "package.json" => {
+            set.insert(BuildSystemType::Node);
+        }
+        "requirements.txt" | "pyproject.toml" | "Pipfile" => {
+            set.insert(BuildSystemType::Python);
+        }
+        "go.mod" => {
+            set.insert(BuildSystemType::Go);
+        }
+        "CMakeLists.txt" => {
+            set.insert(BuildSystemType::CMake);
+        }
+        "conanfile.txt" | "conanfile.py" => {
+            set.insert(BuildSystemType::Conan);
+        }
+        _ => {}
     }
 }

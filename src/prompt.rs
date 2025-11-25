@@ -1,4 +1,6 @@
+// src/prompt.rs
 use crate::config::RuleConfig;
+use anyhow::Result;
 
 pub struct PromptGenerator {
     config: RuleConfig,
@@ -10,10 +12,11 @@ impl PromptGenerator {
         Self { config }
     }
 
-    /// Generates the EXACT user prompt with dynamic values from config
-    #[must_use]
-    pub fn generate(&self) -> String {
-        format!(
+    /// Generates system prompt.
+    /// # Errors
+    /// Returns `Ok`.
+    pub fn generate(&self) -> Result<String> {
+        Ok(format!(
             r#"🛡️ SYSTEM MANDATE: THE WARDEN PROTOCOL
 ROLE: High-Integrity Systems Architect (NASA/JPL Standard).
 CONTEXT: You are coding inside a strict environment enforced by Warden, a structural linter based on NASA's "Power of 10" rules.
@@ -32,11 +35,11 @@ THE 3 LAWS (Non-Negotiable):
    - Rationale: Simpler control flow = stronger analysis capabilities.
    - Action: Extract functions. Simplify branching. Use data structures over parameter lists.
 
-3. LAW OF PARANOIA (Holzmann Rules 5, 7, & 10)
-   - Error Handling: ALL functions return Result<T, E> or Option<T>. NO silent failures.
-   - Banned Patterns: NO .unwrap() calls. NO .expect() in production code.
-   - Validation: Check ALL inputs at entry point (Line 1 of function).
-   - Rationale: Assertion density correlates with defect interception.
+3. LAW OF PARANOIA (Smart Safety)
+   - Fallibility: Use Result<T, E> for I/O, parsing, and system calls.
+   - Infallibility: Do NOT use Result for pure logic or UI rendering (trust Clippy).
+   - Strict Ban: NO .unwrap() or .expect() calls. Zero Tolerance.
+   - Rationale: Leverage Rust's type system. Don't fight the compiler.
 
 LANGUAGE SPECIFICS:
    - RUST: clippy::pedantic enforced. Use thiserror for errors.
@@ -52,13 +55,14 @@ OPERATIONAL PROTOCOL:
             self.config.max_cyclomatic_complexity,
             self.config.max_nesting_depth,
             self.config.max_function_args
-        )
+        ))
     }
 
-    /// Generates the reminder footer (shorter version)
-    #[must_use]
-    pub fn generate_reminder(&self) -> String {
-        format!(
+    /// Generates reminder.
+    /// # Errors
+    /// Returns `Ok`.
+    pub fn generate_reminder(&self) -> Result<String> {
+        Ok(format!(
             r"
 ═══════════════════════════════════════════════════════════════════
 🛡️ REMINDER: WARDEN PROTOCOL CONSTRAINTS
@@ -70,8 +74,7 @@ BEFORE SUBMITTING CODE, VERIFY:
 □ Nesting depth ≤ {} levels
 □ Function parameters ≤ {}
 □ No .unwrap() or .expect() calls
-□ All functions return Result<T, E> or Option<T>
-□ All inputs validated at function entry
+□ Result<T> used for I/O and fallible ops ONLY
 
 If ANY constraint is violated, REFACTOR before submitting.
 ═══════════════════════════════════════════════════════════════════",
@@ -79,20 +82,21 @@ If ANY constraint is violated, REFACTOR before submitting.
             self.config.max_cyclomatic_complexity,
             self.config.max_nesting_depth,
             self.config.max_function_args
-        )
+        ))
     }
 
-    /// Wraps the prompt with visual separators
-    #[must_use]
-    pub fn wrap_header(&self) -> String {
-        format!(
+    /// Wraps prompt.
+    /// # Errors
+    /// Returns `Ok`.
+    pub fn wrap_header(&self) -> Result<String> {
+        let body = self.generate()?;
+        Ok(format!(
             r"═══════════════════════════════════════════════════════════════════
 🛡️ WARDEN PROTOCOL - AI SYSTEM PROMPT
 ═══════════════════════════════════════════════════════════════════
 
-{}
-",
-            self.generate()
-        )
+{body}
+"
+        ))
     }
 }

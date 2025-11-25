@@ -1,3 +1,4 @@
+// src/tui/view/mod.rs
 pub mod components;
 pub mod layout;
 

@@ -1,3 +1,4 @@
+// src/filter.rs
 use crate::config::{Config, BIN_EXT_PATTERN, CODE_BARE_PATTERN, CODE_EXT_PATTERN, SECRET_PATTERN};
 use crate::error::Result;
 use regex::Regex;
@@ -12,30 +13,24 @@ pub struct FileFilter {
 }
 
 impl FileFilter {
-    /// Creates a new file filter.
-    ///
+    /// Creates a new filter.
     /// # Errors
-    ///
-    /// Returns an error if any of the regex patterns (binary extensions, secrets, or code patterns) fail to compile.
-    pub fn new(config: Config) -> Result<Self> {
-        let bin_ext_re = Regex::new(BIN_EXT_PATTERN)?;
-        let secret_re = Regex::new(SECRET_PATTERN)?;
-
-        let (code_ext_re, code_bare_re) = if config.code_only {
-            (
-                Some(Regex::new(CODE_EXT_PATTERN)?),
-                Some(Regex::new(CODE_BARE_PATTERN)?),
-            )
-        } else {
-            (None, None)
-        };
-
+    /// Returns error on invalid regex.
+    pub fn new(config: &Config) -> Result<Self> {
         Ok(Self {
-            config,
-            bin_ext_re,
-            secret_re,
-            code_ext_re,
-            code_bare_re,
+            config: config.clone(),
+            bin_ext_re: Regex::new(BIN_EXT_PATTERN)?,
+            secret_re: Regex::new(SECRET_PATTERN)?,
+            code_ext_re: if config.code_only {
+                Some(Regex::new(CODE_EXT_PATTERN)?)
+            } else {
+                None
+            },
+            code_bare_re: if config.code_only {
+                Some(Regex::new(CODE_BARE_PATTERN)?)
+            } else {
+                None
+            },
         })
     }
 
@@ -46,33 +41,31 @@ impl FileFilter {
 
     fn should_keep(&self, path: &Path) -> bool {
         let s = path.to_string_lossy().replace('\\', "/");
-
-        // Structural Safety: Explicit truth table matching
-        match (self.is_secret(&s), self.is_binary(&s), self.is_excluded(&s)) {
-            (true, _, _) | (_, true, _) | (_, _, true) => return false,
-            _ => {}
+        if self.is_ignored(&s) {
+            return false;
         }
-
-        match (self.is_included(&s), self.config.code_only) {
-            (false, _) => false,
-            (_, true) if !self.is_code(&s) => false,
-            _ => true,
+        if self.config.code_only && !self.is_code(&s) {
+            return false;
         }
+        self.is_included(&s)
     }
 
-    fn is_secret(&self, path: &str) -> bool {
-        self.secret_re.is_match(path)
-    }
-
-    fn is_binary(&self, path: &str) -> bool {
-        self.bin_ext_re.is_match(path)
-    }
-
-    fn is_excluded(&self, path: &str) -> bool {
-        self.config
+    fn is_ignored(&self, path: &str) -> bool {
+        if self.secret_re.is_match(path) {
+            return true;
+        }
+        if self.bin_ext_re.is_match(path) {
+            return true;
+        }
+        if self
+            .config
             .exclude_patterns
             .iter()
             .any(|p| p.is_match(path))
+        {
+            return true;
+        }
+        false
     }
 
     fn is_included(&self, path: &str) -> bool {
@@ -85,7 +78,6 @@ impl FileFilter {
     }
 
     fn is_code(&self, path: &str) -> bool {
-        // Explicit structural safety for mixed option/regex logic
         match (&self.code_ext_re, &self.code_bare_re) {
             (Some(ext), Some(bare)) => ext.is_match(path) || bare.is_match(path),
             _ => true,

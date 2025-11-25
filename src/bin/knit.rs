@@ -1,9 +1,10 @@
+// src/bin/knit.rs
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use colored::Colorize;
 use std::fmt::Write;
 use std::fs;
-use std::path::Path;
+use std::path::PathBuf;
 
 use warden_core::config::{Config, GitMode};
 use warden_core::enumerate::FileEnumerator;
@@ -33,149 +34,126 @@ struct Cli {
     no_git: bool,
     #[arg(long)]
     code_only: bool,
-    /// Wrap output with Warden Protocol prompt
     #[arg(long, short)]
     prompt: bool,
-    /// Output format (Text for standard, Xml for Claude/LLMs)
     #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
     format: OutputFormat,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-
-    let mut config = Config::new();
-    config.verbose = cli.verbose;
-    config.code_only = cli.code_only;
-
-    if cli.git_only {
-        config.git_mode = GitMode::Yes;
-    } else if cli.no_git {
-        config.git_mode = GitMode::No;
-    }
-
-    config.load_local_config();
-    config.validate()?;
+    let config = setup_config(&cli)?;
 
     if !cli.stdout {
         println!("🧶 Knitting repository...");
     }
 
-    let enumerator = FileEnumerator::new(config.clone());
-    let raw_files = enumerator.enumerate()?;
+    let files = discover_files(&config, cli.verbose)?;
+    let content = generate_content(&files, &cli, &config)?;
+    let token_count = Tokenizer::count(&content);
 
-    let heuristic_filter = HeuristicFilter::new();
-    let heuristics_files = heuristic_filter.filter(raw_files);
+    output_result(&content, token_count, cli.stdout)
+}
 
-    let filter = FileFilter::new(config.clone())?;
-    let target_files = filter.filter(heuristics_files);
+fn setup_config(cli: &Cli) -> Result<Config> {
+    let mut config = Config::new();
+    config.verbose = cli.verbose;
+    config.code_only = cli.code_only;
+    config.git_mode = if cli.git_only {
+        GitMode::Yes
+    } else if cli.no_git {
+        GitMode::No
+    } else {
+        GitMode::Auto
+    };
+    config.load_local_config();
+    config.validate()?;
+    Ok(config)
+}
 
-    if cli.verbose {
-        eprintln!("📦 Packing {} files...", target_files.len());
+fn discover_files(config: &Config, verbose: bool) -> Result<Vec<PathBuf>> {
+    let raw = FileEnumerator::new(config.clone()).enumerate()?;
+    let h_files = HeuristicFilter::new().filter(raw);
+    let t_files = FileFilter::new(config)?.filter(h_files);
+
+    if verbose {
+        eprintln!("📦 Packing {} files...", t_files.len());
     }
+    Ok(t_files)
+}
 
-    let mut full_context = String::with_capacity(100_000);
+fn generate_content(files: &[PathBuf], cli: &Cli, config: &Config) -> Result<String> {
+    let mut ctx = String::with_capacity(100_000);
 
-    // Add prompt header if requested
     if cli.prompt {
-        let generator = PromptGenerator::new(config.rules.clone());
-        writeln!(full_context, "{}", generator.wrap_header())?;
-        writeln!(full_context)?;
-        writeln!(
-            full_context,
-            "═══════════════════════════════════════════════════════════════════"
-        )?;
-        writeln!(full_context, "BEGIN CODEBASE")?;
-        writeln!(
-            full_context,
-            "═══════════════════════════════════════════════════════════════════"
-        )?;
-        writeln!(full_context)?;
+        write_header(&mut ctx, config)?;
     }
 
     match cli.format {
-        OutputFormat::Text => pack_text(&target_files, &mut full_context)?,
-        OutputFormat::Xml => pack_xml(&target_files, &mut full_context)?,
+        OutputFormat::Text => pack_text(files, &mut ctx)?,
+        OutputFormat::Xml => pack_xml(files, &mut ctx)?,
     }
 
-    // Add prompt footer if requested
     if cli.prompt {
-        let generator = PromptGenerator::new(config.rules);
-        writeln!(full_context)?;
-        writeln!(
-            full_context,
-            "═══════════════════════════════════════════════════════════════════"
-        )?;
-        writeln!(full_context, "END CODEBASE")?;
-        writeln!(
-            full_context,
-            "═══════════════════════════════════════════════════════════════════"
-        )?;
-        writeln!(full_context, "{}", generator.generate_reminder())?;
+        write_footer(&mut ctx, config)?;
     }
 
-    // Count tokens
-    let token_count = Tokenizer::count(&full_context);
+    Ok(ctx)
+}
 
-    if cli.stdout {
-        print!("{full_context}");
-        eprintln!(
-            "\n📊 Context Size: {} tokens",
-            token_count.to_string().yellow().bold()
-        );
+fn write_header(ctx: &mut String, config: &Config) -> Result<()> {
+    let gen = PromptGenerator::new(config.rules.clone());
+    writeln!(ctx, "{}", gen.wrap_header()?)?;
+    writeln!(ctx, "\n═══════════════════════════════════════════════════════════════════\nBEGIN CODEBASE\n═══════════════════════════════════════════════════════════════════\n")?;
+    Ok(())
+}
+
+fn write_footer(ctx: &mut String, config: &Config) -> Result<()> {
+    let gen = PromptGenerator::new(config.rules.clone());
+    writeln!(ctx, "\n═══════════════════════════════════════════════════════════════════\nEND CODEBASE\n═══════════════════════════════════════════════════════════════════\n")?;
+    writeln!(ctx, "{}", gen.generate_reminder()?)?;
+    Ok(())
+}
+
+fn output_result(content: &str, tokens: usize, stdout: bool) -> Result<()> {
+    let info = format!(
+        "\n📊 Context Size: {} tokens",
+        tokens.to_string().yellow().bold()
+    );
+
+    if stdout {
+        print!("{content}");
+        eprintln!("{info}");
     } else {
-        fs::write("context.txt", &full_context)?;
+        fs::write("context.txt", content)?;
         println!("✅ Generated 'context.txt'");
-        println!(
-            "📊 Context Size: {} tokens",
-            token_count.to_string().yellow().bold()
-        );
+        println!("{info}");
     }
-
     Ok(())
 }
 
-fn normalize_path(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
-}
-
-fn pack_text(files: &[std::path::PathBuf], out: &mut String) -> Result<()> {
+fn pack_text(files: &[PathBuf], out: &mut String) -> Result<()> {
     for path in files {
-        let path_str = normalize_path(path);
-        // XML-style file wrapper: clean boundaries, AI-friendly
-        writeln!(out, "<file path=\"{path_str}\">")?;
-
+        let p_str = path.to_string_lossy().replace('\\', "/");
+        writeln!(out, "<file path=\"{p_str}\">")?;
         match fs::read_to_string(path) {
-            Ok(content) => {
-                out.push_str(&content);
-            }
-            Err(e) => {
-                writeln!(out, "<ERROR READING FILE: {e}>")?;
-            }
+            Ok(c) => out.push_str(&c),
+            Err(e) => writeln!(out, "<ERROR READING FILE: {e}>")?,
         }
-
-        writeln!(out, "</file>")?;
-        out.push('\n');
+        writeln!(out, "</file>\n")?;
     }
     Ok(())
 }
 
-fn pack_xml(files: &[std::path::PathBuf], out: &mut String) -> Result<()> {
+fn pack_xml(files: &[PathBuf], out: &mut String) -> Result<()> {
     writeln!(out, "<documents>")?;
     for path in files {
-        let path_str = normalize_path(path);
-        writeln!(out, "  <document path=\"{path_str}\"><![CDATA[")?;
-
+        let p_str = path.to_string_lossy().replace('\\', "/");
+        writeln!(out, "  <document path=\"{p_str}\"><![CDATA[")?;
         match fs::read_to_string(path) {
-            Ok(content) => {
-                let safe_content = content.replace("]]>", "]]]]><![CDATA[>");
-                out.push_str(&safe_content);
-            }
-            Err(e) => {
-                writeln!(out, "ERROR READING FILE: {e}")?;
-            }
+            Ok(c) => out.push_str(&c.replace("]]>", "]]]]><![CDATA[>")),
+            Err(e) => writeln!(out, "ERROR READING FILE: {e}")?,
         }
-
         writeln!(out, "]]></document>")?;
     }
     writeln!(out, "</documents>")?;

@@ -1,3 +1,4 @@
+// src/config.rs
 use crate::error::Result;
 use regex::Regex;
 use serde::Deserialize;
@@ -34,7 +35,6 @@ impl Default for RuleConfig {
     }
 }
 
-// DEFAULTS
 const fn default_max_tokens() -> usize {
     2000
 }
@@ -97,12 +97,9 @@ impl Config {
         }
     }
 
-    /// Validates the configuration.
-    ///
+    /// Validates configuration.
     /// # Errors
-    ///
-    /// Currently returns `Ok`. Reserved for future validation logic that might
-    /// return an error if configuration combinations are invalid.
+    /// Returns `Ok` if valid.
     pub fn validate(&self) -> Result<()> {
         Ok(())
     }
@@ -113,37 +110,42 @@ impl Config {
     }
 
     fn load_ignore_file(&mut self) {
-        let ignore_path = Path::new(".wardenignore");
-        if let Ok(content) = fs::read_to_string(ignore_path) {
+        if let Ok(content) = fs::read_to_string(".wardenignore") {
             for line in content.lines() {
-                let trimmed = line.trim();
-                if trimmed.is_empty() || trimmed.starts_with('#') {
-                    continue;
-                }
-                if let Ok(re) = Regex::new(trimmed) {
-                    self.exclude_patterns.push(re);
-                }
+                self.process_ignore_line(line);
             }
         }
     }
 
+    fn process_ignore_line(&mut self, line: &str) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            return;
+        }
+        if let Ok(re) = Regex::new(trimmed) {
+            self.exclude_patterns.push(re);
+        }
+    }
+
     fn load_toml_config(&mut self) {
-        let toml_path = Path::new("warden.toml");
-        if let Ok(content) = fs::read_to_string(toml_path) {
-            if let Ok(parsed) = toml::from_str::<WardenToml>(&content) {
-                self.rules = parsed.rules;
-                self.commands = parsed.commands;
-                if self.verbose {
-                    println!("🔧 Loaded warden.toml configuration");
-                }
-            } else if self.verbose {
-                eprintln!("⚠️ Failed to parse warden.toml");
+        if Path::new("warden.toml").exists() {
+            if let Ok(content) = fs::read_to_string("warden.toml") {
+                self.parse_toml(&content);
+            }
+        }
+    }
+
+    fn parse_toml(&mut self, content: &str) {
+        if let Ok(parsed) = toml::from_str::<WardenToml>(content) {
+            self.rules = parsed.rules;
+            self.commands = parsed.commands;
+            if self.verbose {
+                println!("🔧 Loaded warden.toml");
             }
         }
     }
 }
 
-// PRUNE_DIRS and PATTERNS
 pub const PRUNE_DIRS: &[&str] = &[
     ".git",
     ".svn",
