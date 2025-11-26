@@ -38,7 +38,6 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    Undo,
 }
 
 #[derive(Parser)]
@@ -90,6 +89,7 @@ fn init_config() -> Result<()> {
     if std::path::Path::new("warden.toml").exists() {
         println!("{}", "⚠️ warden.toml already exists.".yellow());
     } else {
+        // Default template now suggests auto-detection
         let default_toml = r#"# warden.toml
 [rules]
 max_file_tokens = 2000
@@ -99,8 +99,10 @@ max_function_args = 5
 max_function_words = 3
 ignore_naming_on = ["tests", "spec"]
 
-[commands]
-check = "cargo clippy --all-targets -- -D warnings -D clippy::pedantic"
+# Commands are auto-detected if not specified here.
+# To override:
+# [commands]
+# check = "npx.cmd @biomejs/biome check src/"
 "#;
         fs::write("warden.toml", default_toml)?;
         println!("{}", "✅ Created warden.toml".green());
@@ -135,10 +137,6 @@ fn exec_subcommand(cmd: &Commands, config: &Config) -> Result<()> {
             run_apply(*dry_run);
             Ok(())
         }
-        Commands::Undo => {
-            run_undo();
-            Ok(())
-        }
     }
 }
 
@@ -164,7 +162,10 @@ fn run_alias(config: &Config, name: &str) {
         println!("🚀 Running '{}': {}", name.cyan(), cmd_str.yellow());
         execute_command_string(cmd_str);
     } else {
-        println!("⚠️ Unknown command: '{}'", name.yellow());
+        println!(
+            "⚠️ Unknown command: '{}'. Auto-detection failed or not configured.",
+            name.yellow()
+        );
         process::exit(1);
     }
 }
@@ -172,13 +173,33 @@ fn run_alias(config: &Config, name: &str) {
 fn execute_command_string(cmd_str: &str) {
     let mut parts = cmd_str.split_whitespace();
     if let Some(prog) = parts.next() {
-        let status = Command::new(prog)
-            .args(parts)
-            .status()
-            .unwrap_or_else(|_| process::exit(1));
+        // Verbose error handling for command execution
+        let result = Command::new(prog).args(parts).status();
 
-        if !status.success() {
-            process::exit(status.code().unwrap_or(1));
+        match result {
+            Ok(status) => {
+                if !status.success() {
+                    println!(
+                        "{}",
+                        format!(
+                            "❌ Command failed with exit code {}",
+                            status.code().unwrap_or(1)
+                        )
+                        .red()
+                    );
+                    process::exit(status.code().unwrap_or(1));
+                }
+            }
+            Err(e) => {
+                println!("{}", format!("❌ Failed to execute '{prog}': {e}").red());
+                if cfg!(windows) {
+                    println!(
+                        "{}",
+                        "💡 Tip: On Windows, npm commands need '.cmd' (e.g., 'npx.cmd').".yellow()
+                    );
+                }
+                process::exit(1);
+            }
         }
     }
 }
@@ -196,23 +217,6 @@ fn run_apply(dry_run: bool) {
                 _ => {
                     process::exit(1);
                 }
-            }
-        }
-        Err(e) => {
-            println!("{}", format!("❌ Error: {e}").red());
-            process::exit(1);
-        }
-    }
-}
-
-fn run_undo() {
-    println!("{}", "🔄 Restoring from backup...".yellow());
-
-    match apply::run_undo() {
-        Ok(restored) => {
-            println!("{}", "✅ Restored files:".green());
-            for file in restored {
-                println!("   {} {}", "✓".green(), file.display());
             }
         }
         Err(e) => {

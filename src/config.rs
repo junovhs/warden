@@ -5,6 +5,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::process::Command;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RuleConfig {
@@ -99,7 +100,7 @@ impl Config {
 
     /// Validates configuration.
     /// # Errors
-    /// Returns `Ok` if valid.
+    /// Returns `Ok`.
     pub fn validate(&self) -> Result<()> {
         Ok(())
     }
@@ -107,6 +108,62 @@ impl Config {
     pub fn load_local_config(&mut self) {
         self.load_ignore_file();
         self.load_toml_config();
+        self.detect_defaults();
+    }
+
+    fn detect_defaults(&mut self) {
+        if self.commands.contains_key("check") {
+            return;
+        }
+
+        let is_windows = cfg!(windows);
+        let npx_command = if is_windows { "npx.cmd" } else { "npx" };
+        let npm_command = if is_windows { "npm.cmd" } else { "npm" };
+
+        if Path::new("Cargo.toml").exists() {
+            self.set_default(
+                "check",
+                "cargo clippy --all-targets -- -D warnings -D clippy::pedantic",
+            );
+        } else if Path::new("package.json").exists() {
+            // Intelligent Auto-Configuration for JS/TS
+            let use_biome = Self::should_use_biome(npx_command);
+
+            if use_biome {
+                self.set_default(
+                    "check",
+                    &format!("{npx_command} @biomejs/biome check --write src/"),
+                );
+            } else {
+                self.set_default("check", &format!("{npm_command} run lint -- --fix"));
+            }
+        } else if Path::new("pyproject.toml").exists() || Path::new("requirements.txt").exists() {
+            self.set_default("check", "ruff check --fix .");
+        }
+    }
+
+    fn should_use_biome(npx: &str) -> bool {
+        // 1. If biome.json exists, definitely yes
+        if Path::new("biome.json").exists() {
+            return true;
+        }
+
+        // 2. If package.json has biome dependency, but config is missing -> Auto Init
+        if let Ok(content) = fs::read_to_string("package.json") {
+            if content.contains("@biomejs/biome") {
+                println!("⚙️  Detected Biome dependency but missing config. Initializing...");
+                let _ = Command::new(npx).args(["@biomejs/biome", "init"]).output();
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn set_default(&mut self, key: &str, val: &str) {
+        if !self.commands.contains_key(key) {
+            self.commands.insert(key.to_string(), val.to_string());
+        }
     }
 
     fn load_ignore_file(&mut self) {
