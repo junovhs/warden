@@ -53,6 +53,18 @@ This installs two binaries: `warden` and `knit`.
 
 ---
 
+## Quick Start
+
+```bash
+cd your-project
+warden              # Scan for violations (auto-creates warden.toml)
+knit --prompt       # Generate context.txt for AI
+```
+
+That's it. No setup required—Warden detects your project type and configures itself.
+
+---
+
 ## The Workflow
 
 Warden isn't just a linter—it's a closed-loop system for AI development.
@@ -100,7 +112,8 @@ warden apply
 
 This:
 - Parses `<delivery>` manifest and `<file>` blocks
-- Validates: Are all declared files provided?
+- Validates all declared files are provided
+- **Rejects markdown code blocks** (``` or ~~~) — these corrupt source files
 - Creates timestamped backups in `.warden_apply_backup/`
 - Writes files atomically
 - On failure: generates AI-friendly error message, copies to clipboard
@@ -116,7 +129,7 @@ Runs structural analysis. If violations exist, exit code is non-zero.
 For full verification including your language linter:
 
 ```bash
-warden run check
+warden check
 ```
 
 Runs whatever command is configured in `warden.toml` (e.g., `cargo clippy`, `biome check`).
@@ -131,25 +144,47 @@ If `warden apply` fails, the error message is already in your clipboard. Paste i
 
 | Command | Description |
 |---------|-------------|
-| `warden` | Run structural scan |
+| `warden` | Run structural scan (auto-creates config if missing) |
 | `warden --ui` | Interactive TUI dashboard |
-| `warden --init` | Create `warden.toml` |
+| `warden --init` | Create/regenerate `warden.toml` |
 | `warden apply` | Apply AI response from clipboard |
 | `warden apply --dry-run` | Validate without writing |
-| `warden run check` | Run configured check command |
-| `warden run fix` | Run configured fix command |
+| `warden check` | Run configured check command |
+| `warden fix` | Run configured fix command |
 | `warden prompt` | Print system prompt |
 | `warden prompt -c` | Copy system prompt to clipboard |
 | `knit` | Generate context.txt |
 | `knit --prompt` | Include system prompt in context |
 | `knit --stdout` | Output to stdout instead of file |
-| `knit --format xml` | Use XML CDATA format |
 
 ---
 
 ## Configuration
 
-Run `warden --init` to generate `warden.toml`:
+Warden auto-generates `warden.toml` on first run, detecting your project type:
+
+**Rust projects** get:
+```toml
+[commands]
+check = "cargo clippy --all-targets -- -D warnings -D clippy::pedantic"
+fix = "cargo fmt"
+```
+
+**Node/TypeScript projects** get:
+```toml
+[commands]
+check = "npx @biomejs/biome check src/"
+fix = "npx @biomejs/biome check --write src/"
+```
+
+**Python projects** get:
+```toml
+[commands]
+check = "ruff check ."
+fix = "ruff check --fix ."
+```
+
+### Full Configuration
 
 ```toml
 [rules]
@@ -176,21 +211,6 @@ max_cyclomatic_complexity = 4
 max_nesting_depth = 2
 max_function_args = 4
 ```
-
-### TypeScript/Web Projects
-
-```toml
-[rules]
-max_file_tokens = 2000
-max_cyclomatic_complexity = 10
-max_nesting_depth = 4
-
-[commands]
-check = "npx @biomejs/biome check src/"
-fix = "npx @biomejs/biome check --write src/"
-```
-
-**Windows Note:** Use `npx.cmd` instead of `npx`.
 
 ---
 
@@ -234,7 +254,24 @@ path/to/obsolete.rs [DELETE]
 - `[NEW]` marks files being created
 - `[DELETE]` marks files to remove
 - Files must be complete—no `// ... rest of file` truncation
+- **No markdown code blocks** — use `<file>` tags only
 - Paths are relative to project root
+
+---
+
+## Safety Features
+
+### Markdown Block Rejection
+
+`warden apply` scans file contents for markdown code blocks (```, ~~~) and **rejects the entire apply** if found. This prevents a common AI failure mode where code blocks get embedded in source files.
+
+### Atomic Backups
+
+Before any write, Warden copies existing files to `.warden_apply_backup/TIMESTAMP/`. If something goes wrong, your original files are preserved.
+
+### Validation-First
+
+Files are validated before any disk writes. If the manifest declares 5 files but the AI only provided 4, nothing is written.
 
 ---
 

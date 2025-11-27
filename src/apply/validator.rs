@@ -74,10 +74,8 @@ fn check_single_file(path: &str, content: &str, errors: &mut Vec<String>) {
 }
 
 fn detect_markdown_block(content: &str) -> Option<&'static str> {
-    for pattern in MARKDOWN_PATTERNS {
-        if content.contains(pattern) {
-            return Some(pattern);
-        }
-    }
-    None
+    MARKDOWN_PATTERNS
+        .iter()
+        .find(|&&pattern| content.contains(pattern))
+        .copied()
 }
