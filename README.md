@@ -81,12 +81,39 @@ Creates `context.txt` containing:
 
 Drag `context.txt` into Claude/GPT/Gemini. Ask for changes.
 
-The AI will respond with:
+The AI will respond with the **Nabla Protocol**:
 
     <delivery>
     src/lib.rs
     src/new_module.rs [NEW]
     </delivery>
     
-    <file path="src/lib.rs">
+    ∇∇∇ src/lib.rs ∇∇∇
     // complete file contents
+    ∆∆∆
+
+### 3. Apply Changes
+
+    warden apply
+
+Warden parses the clipboard (or specifically formatted AI output), validates the changes against the 3 Laws, and writes them to disk.
+
+---
+
+## Configuration (`warden.toml`)
+
+    [rules]
+    max_file_tokens = 2000
+    max_cyclomatic_complexity = 5
+    max_nesting_depth = 2
+    max_function_args = 5
+    
+    [commands]
+    check = "cargo clippy"  # or "npm run lint", "ruff check ."
+    fix = "cargo fmt"       # or "npm run format"
+
+---
+
+## License
+
+MIT

@@ -1,6 +1,3 @@
-# warden:ignore
-# Warden Protocol Roadmap
-...
 # Warden Protocol Roadmap
 
 ## Current State: v0.4.0 ✓
@@ -20,16 +17,15 @@ The core loop works:
 
 ### Validation Hardening
 
-- [ ] **Truncation detection (smart)**  
+- [x] **Truncation detection (smart)**  
   Reject files that are obviously incomplete:
-  - Unbalanced braces/brackets (language-aware: skip for Python)
-  - Truncation markers: `// ...`, `/* ... */`, `// rest of file`, `// etc`, `// remaining code`
-  - Unclosed strings, unclosed block comments
-  - Files that end mid-statement (heuristic: ends with `{`, `,`, `(`, `=`)
+  - [x] Truncation markers: `// ...`, `/* ... */`, `// rest of file`, `// etc`
+  - [ ] Unbalanced braces/brackets (deferring to v0.6 for robustness)
+  - [ ] Files that end mid-statement (deferring)
   
   *Goal: Zero false positives. If Warden rejects it, it was definitely broken.*
 
-- [ ] **Path safety validation**  
+- [x] **Path safety validation**  
   Block dangerous paths before they touch disk:
   - `../` directory traversal
   - Absolute paths (`/etc/passwd`, `C:\Windows\...`)
@@ -44,49 +40,36 @@ The core loop works:
 - [x] **Markdown block rejection**  
   Rejects files containing fenced code blocks to prevent AI formatting artifacts from corrupting source.
 
+- [x] **Robust Delimiter Protocol (The "Nabla" Format)**
+  Replace fragile XML tags with high-entropy Unicode fences to prevent Markdown rendering issues and AI confusion.
+  - Start: `∇∇∇ path/to/file.rs ∇∇∇`
+  - End:   `∆∆∆`
+  - *Prevents chat interfaces from hiding tags or interpreting them as HTML.*
+
 ### Workflow Enhancement (v0.5.0)
 
-- [ ] **Smart Clipboard Protocol**
-  - Auto-detect content size.
-  - If < 1500 tokens: Copy as raw text.
-  - If > 1500 tokens: Save to temp file, copy *file handle* to clipboard.
-  - Enables `Ctrl+V` to attach `context.txt` as a file instantly, preventing browser crashes.
-  - **The Garbage Man:** Auto-cleanup temp files older than 15 mins. To handle cleanup, every time warden performs a "Smart Copy," it quickly scans the temp directory and deletes any Warden temp files older than 15 minutes. This keeps disk usage low without breaking the "Copy -> Wait 5 mins -> Paste" flow.
+- [x] **Error injection in knit**  
+  When `knit --prompt` runs, it scans the files being packed. If violations exist, they are appended to the context header.
+  *AI sees what's broken. AI fixes it.*
+
+- [ ] **Smart Clipboard Protocol** (Refinement)
+  - Currently implemented but needs validation of the "Garbage Man" (auto-cleanup).
+  - Ensure it handles Unicode correctly on all OSs.
 
 - [ ] **The "Plan" Protocol** (Prompt Update)
   Update system prompt to enforce a `<plan>` block before `<delivery>`.
   - AI must explain *why* it is making changes in natural language first.
   - `warden apply` extracts the plan and displays it to the user for confirmation before writing files.
-  - *Mitigates "coding without thinking".*
-
-- [ ] **Error injection in knit**  
-  When `knit --prompt` runs:
-  1. Run `warden` scan internally
-  2. If violations exist, append them to context
-  
-  Example output appended:
-
-      ═══════════════════════════════════════════════════════════════════
-      CURRENT VIOLATIONS (FIX THESE)
-      ═══════════════════════════════════════════════════════════════════
-      
-      src/apply/validator.rs:42 [LAW OF COMPLEXITY]
-        High Complexity: Score is 12 (Max: 5). Hard to test.
-      
-      src/lib.rs:156 [LAW OF ATOMICITY]  
-        File is 2,341 tokens (Max: 2,000). Split it.
-  
-  *AI sees what's broken. AI fixes it. You don't have to explain.*
 
 ### Git Integration (Experimental)
 
-- [ ] **`warden apply --commit`**  
+- [ ] **warden apply --commit**  
   On successful apply:
   1. `git add .`
   2. Auto-generate commit message from the `<plan>` block or `<delivery>` manifest
   3. Commit (no push by default)
 
-- [ ] **`warden apply --commit --push`**  
+- [ ] **warden apply --commit --push**  
   Same as above, but also pushes.
 
 *Philosophy: If it passes validation, commit it. Use git as your undo. Atomic commits per apply.*
@@ -107,7 +90,7 @@ The core loop works:
   - Keep structs, enums, trait signatures, and function signatures.
   - Goal: Reduce file size by ~70-90% while retaining API visibility.
   
-- [ ] **`knit --skeleton`**
+- [ ] **knit --skeleton**
   - Generates a context file where *every* file is skeletonized.
   - Useful for "high level architectural planning" with the AI.
 
@@ -116,7 +99,7 @@ The core loop works:
   - Implement Tree-sitter queries to find `mod`, `use`, `import`, and `require`.
   - Build a lightweight graph of local file dependencies.
 
-- [ ] **`knit src/main.rs --smart`**
+- [ ] **knit src/main.rs --smart**
   - **The Territory:** Includes full source code of `src/main.rs` and its *immediate* imports.
   - **The Map:** Includes *skeletons* of the rest of the project (or at least the rest of the module).
   - *Result:* AI has deep focus on the task, broad awareness of the project, but low token count.
@@ -135,7 +118,7 @@ The core loop works:
 **Theme:** Trust the tool, verify the AI.
 
 ### Property-Based Testing (The Dream)
-- [ ] **`warden gen-test <file>`**
+- [ ] **warden gen-test <file>**
   - Uses AI to write *Property-Based Tests* (`proptest` for Rust, `hypothesis` for Python).
   - Prompt: "Analyze this code. Write a property test that asserts invariants. Do not write unit tests."
   - Automatically saves to `tests/warden_props_<name>.rs`.

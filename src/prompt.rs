@@ -81,34 +81,38 @@ THE 3 LAWS (Non-Negotiable):
 □ Nesting ≤ {depth}
 □ Args ≤ {args}
 □ No .unwrap()
-□ Use <delivery> + <file> tags"
+□ Use Nabla Format (∇∇∇ ... ∆∆∆)"
         )
     }
 }
 
 fn build_output_format() -> &'static str {
-    r"OUTPUT FORMAT (MANDATORY):
+    r#"OUTPUT FORMAT (MANDATORY):
 
-When providing code files, use this exact format:
-
-1. Declare ALL files first:
+1. Declare the plan (Manifest):
 
 <delivery>
 path/to/file1.rs
 path/to/file2.rs [NEW]
 </delivery>
 
-2. Provide EACH file:
+2. Provide EACH file using the NABLA PROTOCOL:
+   - Start: ∇∇∇ path/to/file ∇∇∇
+   - End:   ∆∆∆
 
-<file path='path/to/file1.rs'>
-[complete file contents]
-</file>
+Example:
+
+∇∇∇ src/main.rs ∇∇∇
+fn main() {
+    println!("Hello World");
+}
+∆∆∆
 
 RULES:
-- Every file in <delivery> MUST have a matching <file> block
-- Do NOT use markdown code blocks - use <file> tags only
-- Do NOT truncate files
-- Paths must match exactly
-
-The `warden apply` command will REJECT incomplete deliveries."
+- Do NOT use markdown code blocks (e.g. triple backticks) to wrap the file. The ∇∇∇ delimiters ARE the fence.
+- You MAY use markdown inside the file content.
+- Every file in <delivery> MUST have a matching ∇∇∇ block.
+- Paths must match exactly.
+- Do NOT truncate files.
+"#
 }

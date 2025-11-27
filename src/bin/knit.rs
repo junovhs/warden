@@ -12,6 +12,7 @@ use warden_core::enumerate::FileEnumerator;
 use warden_core::filter::FileFilter;
 use warden_core::heuristics::HeuristicFilter;
 use warden_core::prompt::PromptGenerator;
+use warden_core::rules::RuleEngine;
 use warden_core::tokens::Tokenizer;
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -28,7 +29,7 @@ struct Cli {
     #[arg(long, short)]
     stdout: bool,
     #[arg(long, short)]
-    copy: bool, // <--- NEW FLAG
+    copy: bool,
     #[arg(long, short)]
     verbose: bool,
     #[arg(long)]
@@ -90,6 +91,8 @@ fn generate_content(files: &[PathBuf], cli: &Cli, config: &Config) -> Result<Str
 
     if cli.prompt {
         write_header(&mut ctx, config)?;
+        // NEW: Inject active violations into the context so AI sees what to fix
+        inject_violations(&mut ctx, files, config)?;
     }
 
     write_body(files, &mut ctx, &cli.format)?;
@@ -99,6 +102,37 @@ fn generate_content(files: &[PathBuf], cli: &Cli, config: &Config) -> Result<Str
     }
 
     Ok(ctx)
+}
+
+fn inject_violations(ctx: &mut String, files: &[PathBuf], config: &Config) -> Result<()> {
+    let engine = RuleEngine::new(config.clone());
+    // We scan the files we are about to pack.
+    // This ensures the AI sees errors relevant to the context provided.
+    let report = engine.scan(files.to_vec());
+
+    if !report.has_errors() {
+        return Ok(());
+    }
+
+    writeln!(ctx, "═══════════════════════════════════════════════════════════════════")?;
+    writeln!(ctx, "⚠️  ACTIVE VIOLATIONS (PRIORITY FIX REQUIRED)")?;
+    writeln!(ctx, "═══════════════════════════════════════════════════════════════════\n")?;
+
+    for file in report.files {
+        if file.is_clean() {
+            continue;
+        }
+        for v in file.violations {
+            writeln!(ctx, "FILE: {}", file.path.display())?;
+            writeln!(ctx, "LAW:  {}", v.law)?;
+            writeln!(ctx, "LINE: {}", v.row + 1)?;
+            writeln!(ctx, "ERR:  {}", v.message)?;
+            writeln!(ctx, "{}", "─".repeat(40))?;
+        }
+    }
+    writeln!(ctx)?;
+    
+    Ok(())
 }
 
 fn write_body(files: &[PathBuf], ctx: &mut String, format: &OutputFormat) -> Result<()> {
@@ -152,6 +186,8 @@ fn output_result(content: &str, tokens: usize, cli: &Cli) -> Result<()> {
 fn pack_text(files: &[PathBuf], out: &mut String) -> Result<()> {
     for path in files {
         let p_str = path.to_string_lossy().replace('\\', "/");
+        // Legacy XML-like file tags are still used for INPUT to the AI
+        // because they are easy to read. The AI is instructed to output Nabla.
         writeln!(out, "<file path=\"{p_str}\">")?;
         match fs::read_to_string(path) {
             Ok(c) => out.push_str(&c),

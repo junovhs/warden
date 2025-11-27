@@ -4,91 +4,73 @@ use anyhow::Result;
 use regex::Regex;
 use std::collections::HashMap;
 
-/// Extracts file blocks from the raw response text.
+/// Extracts file blocks using the Robust Delimiter Protocol (Nabla Format).
+///
+/// Format:
+/// ∇∇∇ path/to/file.rs ∇∇∇
+/// [content]
+/// ∆∆∆
 ///
 /// # Errors
 /// Returns error if regex compilation fails.
 pub fn extract_files(response: &str) -> Result<HashMap<String, FileContent>> {
     let mut files = HashMap::new();
-    let open_tag_re = Regex::new(r"(?i)<file\s+([^>]+)>")?;
-    let path_attr_re = Regex::new(r#"(?i)path\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+))"#)?;
-    let close_tag_re = Regex::new(r"(?i)</file>")?;
+    
+    // ∇∇∇ path ∇∇∇
+    // We capture the path loosely to allow for whitespace variance
+    let header_re = Regex::new(r"(?m)^∇∇∇\s*(.+?)\s*∇∇∇\s*$")?;
+    
+    // ∆∆∆
+    let footer_re = Regex::new(r"(?m)^∆∆∆\s*$")?;
 
     let mut current_pos = 0;
 
-    while let Some(cap) = open_tag_re.find_at(response, current_pos) {
-        current_pos = process_tag_match(response, cap, &path_attr_re, &close_tag_re, &mut files);
+    while let Some(header_match) = header_re.find_at(response, current_pos) {
+        let path = header_match.as_str()
+            .replace('∇', "")
+            .trim()
+            .to_string();
+
+        let content_start = header_match.end();
+
+        // Find the next footer starting from where the header ended
+        if let Some(footer_match) = footer_re.find_at(response, content_start) {
+            let content_end = footer_match.start();
+            
+            // Extract and clean content
+            // We trim the immediate newline after the header and before the footer
+            // but preserve indentation and internal newlines.
+            let raw_content = &response[content_start..content_end];
+            let clean_content = clean_nabla_content(raw_content);
+            let line_count = clean_content.lines().count();
+
+            files.insert(
+                path,
+                FileContent {
+                    content: clean_content,
+                    line_count,
+                },
+            );
+
+            // Move past this block
+            current_pos = footer_match.end();
+        } else {
+            // If we found a header but no footer, the file is truncated or malformed.
+            // We skip it and try to find the next header (or just stop).
+            // In a strict mode, we might error here, but for now we proceed.
+            current_pos = content_start;
+        }
     }
 
     Ok(files)
 }
 
-fn process_tag_match(
-    response: &str,
-    cap: regex::Match,
-    path_re: &Regex,
-    close_re: &Regex,
-    files: &mut HashMap<String, FileContent>,
-) -> usize {
-    let tag_end = cap.end();
-    let attributes_str = cap.as_str();
-
-    let Some(path) = extract_path(path_re, attributes_str) else {
-        return tag_end;
-    };
-
-    if let Some(close_match) = close_re.find_at(response, tag_end) {
-        let content_end = close_match.start();
-        let raw_content = &response[tag_end..content_end];
-
-        let clean_content = clean_file_content(raw_content);
-        let line_count = clean_content.lines().count();
-
-        files.insert(
-            path,
-            FileContent {
-                content: clean_content,
-                line_count,
-            },
-        );
-
-        close_match.end()
-    } else {
-        // Stop parsing if no closing tag found
-        response.len()
-    }
-}
-
-fn extract_path(re: &Regex, attrs: &str) -> Option<String> {
-    re.captures(attrs).and_then(|captures| {
-        captures
-            .get(1)
-            .or_else(|| captures.get(2))
-            .or_else(|| captures.get(3))
-            .map(|m| m.as_str().to_string())
-    })
-}
-
-fn clean_file_content(raw: &str) -> String {
-    let trimmed = raw.trim();
-    let lines: Vec<&str> = trimmed.lines().collect();
-
-    if lines.is_empty() {
-        return String::new();
-    }
-
-    let first_line = lines.first().unwrap_or(&"").trim();
-    let last_line = lines.last().unwrap_or(&"").trim();
-
-    let starts_with_fence = first_line.starts_with("```");
-    let ends_with_fence = last_line.starts_with("```");
-
-    if starts_with_fence && ends_with_fence {
-        if lines.len() <= 2 {
-            return String::new();
-        }
-        return lines[1..lines.len() - 1].join("\n");
-    }
-
-    trimmed.to_string()
+fn clean_nabla_content(raw: &str) -> String {
+    // We want to remove the single leading newline that usually follows the header
+    // and the single trailing newline before the footer, but keep everything else.
+    let content = raw.trim_matches('\n');
+    
+    // We do NOT strip markdown fences anymore. 
+    // The Nabla format is designed to hold markdown safely.
+    content.to_string()
 }
