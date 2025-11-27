@@ -87,8 +87,7 @@ THE 3 LAWS (Non-Negotiable):
 }
 
 fn build_output_format() -> String {
-    // We construct the delimiters dynamically to avoid confusing the Warden parser
-    // if it scans this file. "Parser Inception" prevention.
+    // We construct the delimiters dynamically to avoid confusing the Warden parser.
     let nabla = "∇";
     let delta = "∆";
     let open = format!("{nabla}{nabla}{nabla}");
@@ -96,10 +95,15 @@ fn build_output_format() -> String {
 
     format!(r#"OUTPUT FORMAT (MANDATORY):
 
-1. Explain the changes (Plan) using NABLA PROTOCOL:
+1. Explain the changes (Technical Plan) using NABLA PROTOCOL:
+   - Must start with "GOAL:"
+   - Must include "CHANGES:" list
 
 {open} PLAN {open}
-I will refactor the apply module to include user confirmation...
+GOAL: Refactor authentication module.
+CHANGES:
+1. Extract user validation to new file.
+2. Update config parser.
 {close}
 
 2. Declare the plan (Manifest) using NABLA PROTOCOL:
@@ -113,22 +117,6 @@ path/to/file2.rs [NEW]
 
 {open} path/to/file1.rs {open}
 [file content]
-{close}
-
-Example:
-
-{open} PLAN {open}
-Adding hello world feature.
-{close}
-
-{open} MANIFEST {open}
-src/main.rs
-{close}
-
-{open} src/main.rs {open}
-fn main() {{
-    println!("Hello World");
-}}
 {close}
 
 RULES:

@@ -11,16 +11,16 @@ use crate::clipboard;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use std::io::{self, Write};
-use std::path::Path;
-use types::{ApplyConfig, ApplyOutcome, ExtractedFiles, Manifest};
+use std::process::Command;
+use types::{ApplyContext, ApplyOutcome, ExtractedFiles, Manifest};
 
 /// Runs the apply command logic.
 ///
 /// # Errors
 /// Returns error if clipboard access fails.
-pub fn run_apply(config: ApplyConfig) -> Result<ApplyOutcome> {
+pub fn run_apply(ctx: &ApplyContext) -> Result<ApplyOutcome> {
     let content = clipboard::read_clipboard().context("Failed to read clipboard")?;
-    process_input(&content, &config)
+    process_input(&content, ctx)
 }
 
 pub fn print_result(outcome: &ApplyOutcome) {
@@ -31,27 +31,32 @@ pub fn print_result(outcome: &ApplyOutcome) {
 ///
 /// # Errors
 /// Returns error if extraction, write, or git operations fail.
-pub fn process_input(content: &str, config: &ApplyConfig) -> Result<ApplyOutcome> {
+pub fn process_input(content: &str, ctx: &ApplyContext) -> Result<ApplyOutcome> {
     if content.trim().is_empty() {
-        return Ok(ApplyOutcome::ParseError(
-            "Clipboard/Input is empty".to_string(),
-        ));
+        return Ok(ApplyOutcome::ParseError("Clipboard/Input is empty".to_string()));
     }
 
     let plan_opt = extractor::extract_plan(content);
 
-    if !handle_plan_interaction(plan_opt.as_deref(), config)? {
-        return Ok(ApplyOutcome::ParseError(
-            "Operation cancelled by user.".to_string(),
-        ));
+    if !ensure_consent(plan_opt.as_deref(), ctx)? {
+        return Ok(ApplyOutcome::ParseError("Operation cancelled by user.".to_string()));
     }
 
-    execute_apply(content, config, plan_opt.as_deref())
+    let validation = validate_payload(content);
+    if !matches!(validation, ApplyOutcome::Success { .. }) {
+        return Ok(validation);
+    }
+
+    apply_and_verify(content, ctx, plan_opt.as_deref())
 }
 
-fn handle_plan_interaction(plan: Option<&str>, config: &ApplyConfig) -> Result<bool> {
+fn ensure_consent(plan: Option<&str>, ctx: &ApplyContext) -> Result<bool> {
     let Some(p) = plan else {
-        return Ok(true);
+        if ctx.force || ctx.dry_run {
+            return Ok(true);
+        }
+        println!("{}", "⚠️  No PLAN block found. Proceed with caution.".yellow());
+        return confirm("Apply these changes without a plan?");
     };
 
     println!("{}", "📋 PROPOSED PLAN:".cyan().bold());
@@ -59,59 +64,15 @@ fn handle_plan_interaction(plan: Option<&str>, config: &ApplyConfig) -> Result<b
     println!("{}", p.trim());
     println!("{}", "─".repeat(50).dimmed());
 
-    if config.force || config.dry_run {
+    if ctx.force || ctx.dry_run {
         return Ok(true);
     }
 
-    print!("Apply these changes? [y/N] ");
-    io::stdout().flush()?;
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-
-    Ok(input.trim().eq_ignore_ascii_case("y"))
+    validate_plan_structure(p);
+    confirm("Apply these changes?")
 }
 
-fn execute_apply(content: &str, config: &ApplyConfig, plan: Option<&str>) -> Result<ApplyOutcome> {
-    let validation = parse_and_validate(content);
-
-    if !matches!(validation, ApplyOutcome::Success { .. }) {
-        return Ok(validation);
-    }
-
-    if config.dry_run {
-        return Ok(ApplyOutcome::Success {
-            written: vec!["(Dry Run) Files verified".to_string()],
-            backed_up: false,
-        });
-    }
-
-    perform_write_and_commit(content, config, plan)
-}
-
-fn perform_write_and_commit(
-    content: &str,
-    config: &ApplyConfig,
-    plan: Option<&str>,
-) -> Result<ApplyOutcome> {
-    let extracted = extractor::extract_files(content)?;
-    let outcome = writer::write_files(&extracted, config.root)?;
-
-    if config.commit {
-        try_commit(&outcome, plan, config.root);
-    }
-    Ok(outcome)
-}
-
-fn try_commit(outcome: &ApplyOutcome, plan: Option<&str>, root: Option<&Path>) {
-    if let ApplyOutcome::Success { ref written, .. } = outcome {
-        if let Err(e) = git::commit_changes(written, plan, root) {
-            eprintln!("{} Failed to commit: {e}", "⚠️".yellow());
-        }
-    }
-}
-
-fn parse_and_validate(content: &str) -> ApplyOutcome {
+fn validate_payload(content: &str) -> ApplyOutcome {
     let manifest = match parse_manifest_step(content) {
         Ok(m) => m,
         Err(e) => return ApplyOutcome::ParseError(e),
@@ -123,6 +84,80 @@ fn parse_and_validate(content: &str) -> ApplyOutcome {
     };
 
     validator::validate(&manifest, &extracted)
+}
+
+fn apply_and_verify(content: &str, ctx: &ApplyContext, plan: Option<&str>) -> Result<ApplyOutcome> {
+    let extracted = extractor::extract_files(content)?;
+    
+    if ctx.dry_run {
+        return Ok(ApplyOutcome::Success {
+            written: vec!["(Dry Run) Files verified".to_string()],
+            backed_up: false,
+        });
+    }
+
+    let outcome = writer::write_files(&extracted, None)?;
+
+    verify_and_commit(&outcome, ctx, plan)?;
+    Ok(outcome)
+}
+
+fn verify_and_commit(outcome: &ApplyOutcome, ctx: &ApplyContext, plan: Option<&str>) -> Result<()> {
+    if !matches!(outcome, ApplyOutcome::Success { .. }) {
+        return Ok(());
+    }
+
+    if !verify_application(ctx)? {
+        println!("{}", "\n❌ Verification Failed. Changes applied but NOT committed.".red().bold());
+        println!("Fix the issues manually and then commit.");
+        return Ok(());
+    }
+
+    println!("{}", "\n✨ Verification Passed. Committing & Pushing...".green().bold());
+    if let Err(e) = git::commit_and_push(plan) {
+        eprintln!("{} Git operation failed: {e}", "⚠️".yellow());
+    }
+    Ok(())
+}
+
+fn verify_application(ctx: &ApplyContext) -> Result<bool> {
+    println!("{}", "\n🔍 Verifying changes...".blue().bold());
+
+    if let Some(cmd) = ctx.config.commands.get("check") {
+        if !run_check_command(cmd)? {
+            return Ok(false);
+        }
+    }
+
+    println!("Running structural scan...");
+    let status = Command::new("warden").status()?;
+    Ok(status.success())
+}
+
+fn run_check_command(cmd: &str) -> Result<bool> {
+    println!("Running check: {}", cmd.dimmed());
+    let parts: Vec<&str> = cmd.split_whitespace().collect();
+    
+    let Some((prog, args)) = parts.split_first() else {
+        return Ok(true); // Empty command passes trivially
+    };
+
+    let status = Command::new(prog).args(args).status()?;
+    Ok(status.success())
+}
+
+fn validate_plan_structure(plan: &str) {
+    if !plan.contains("GOAL:") || !plan.contains("CHANGES:") {
+        println!("{}", "⚠️  Plan is unstructured (missing GOAL/CHANGES).".yellow());
+    }
+}
+
+fn confirm(prompt: &str) -> Result<bool> {
+    print!("{prompt} [y/N] ");
+    io::stdout().flush()?;
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().eq_ignore_ascii_case("y"))
 }
 
 fn parse_manifest_step(content: &str) -> Result<Manifest, String> {

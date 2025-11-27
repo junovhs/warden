@@ -1,6 +1,6 @@
 // src/apply/types.rs
+use crate::config::Config;
 use std::collections::HashMap;
-use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
@@ -36,14 +36,23 @@ pub enum ApplyOutcome {
     WriteError(String),
 }
 
-/// Configuration options for the apply process.
-/// Created to satisfy Law of Complexity (max 5 args).
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ApplyConfig<'a> {
-    pub dry_run: bool,
-    pub force: bool,
-    pub commit: bool,
-    pub root: Option<&'a Path>,
+/// Context for the apply operation.
+/// Connects project config with runtime flags.
+pub struct ApplyContext<'a> {
+    pub config: &'a Config,
+    pub force: bool,   // Skips interactive confirmation (for tests/automation)
+    pub dry_run: bool, // Skips disk writes (for tests)
+}
+
+impl<'a> ApplyContext<'a> {
+    #[must_use]
+    pub fn new(config: &'a Config) -> Self {
+        Self {
+            config,
+            force: false,
+            dry_run: false,
+        }
+    }
 }
 
 // The manifest is just a list of entries
