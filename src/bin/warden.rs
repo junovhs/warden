@@ -4,11 +4,11 @@ use clap::{Parser, Subcommand};
 use colored::Colorize;
 use std::fs;
 use std::io;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
 use warden_core::apply;
+use warden_core::apply::types::ApplyConfig;
 use warden_core::config::Config;
 use warden_core::enumerate::FileEnumerator;
 use warden_core::filter::FileFilter;
@@ -45,6 +45,8 @@ enum Commands {
         dry_run: bool,
         #[arg(long, short)]
         force: bool,
+        #[arg(long)]
+        commit: bool,
     },
 }
 
@@ -78,7 +80,19 @@ fn dispatch_subcommand(cmd: &Commands) -> Result<()> {
         Commands::Prompt { copy } => handle_prompt(*copy),
         Commands::Check => run_command("check"),
         Commands::Fix => run_command("fix"),
-        Commands::Apply { dry_run, force } => handle_apply(*dry_run, *force),
+        Commands::Apply {
+            dry_run,
+            force,
+            commit,
+        } => {
+            let config = ApplyConfig {
+                dry_run: *dry_run,
+                force: *force,
+                commit: *commit,
+                root: None,
+            };
+            handle_apply(config)
+        }
     }
 }
 
@@ -90,8 +104,8 @@ fn dispatch_default(ui: bool) -> Result<()> {
     }
 }
 
-fn handle_apply(dry_run: bool, force: bool) -> Result<()> {
-    let outcome = apply::run_apply(dry_run, force)?;
+fn handle_apply(config: ApplyConfig) -> Result<()> {
+    let outcome = apply::run_apply(config)?;
     apply::print_result(&outcome);
     Ok(())
 }

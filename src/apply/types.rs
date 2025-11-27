@@ -1,5 +1,6 @@
 // src/apply/types.rs
 use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Operation {
@@ -33,6 +34,16 @@ pub enum ApplyOutcome {
     },
     ParseError(String),
     WriteError(String),
+}
+
+/// Configuration options for the apply process.
+/// Created to satisfy Law of Complexity (max 5 args).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ApplyConfig<'a> {
+    pub dry_run: bool,
+    pub force: bool,
+    pub commit: bool,
+    pub root: Option<&'a Path>,
 }
 
 // The manifest is just a list of entries

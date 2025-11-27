@@ -7,6 +7,8 @@ use std::collections::HashMap;
 /// Extracts the optional PLAN block.
 #[must_use]
 pub fn extract_plan(response: &str) -> Option<String> {
+    // FIX: Added (?m)^ to ensure PLAN block is at the start of a line.
+    // This prevents "Inception" bugs where documentation inside a file triggers the parser.
     let open_re = Regex::new(r"(?m)^∇∇∇\s*PLAN\s*∇∇∇\s*$").ok()?;
     let close_re = Regex::new(r"(?m)^∆∆∆\s*$").ok()?;
 
@@ -34,7 +36,12 @@ pub fn extract_files(response: &str) -> Result<HashMap<String, FileContent>> {
     let mut current_pos = 0;
 
     while let Some(header_match) = header_re.find_at(response, current_pos) {
-        current_pos = process_block(response, header_match, &footer_re, &mut files);
+        current_pos = process_block(
+            response,
+            header_match,
+            &footer_re,
+            &mut files
+        );
     }
 
     Ok(files)
@@ -48,7 +55,7 @@ fn process_block(
 ) -> usize {
     let raw_path = header_match.as_str().replace('∇', "").trim().to_string();
 
-    // Skip MANIFEST and PLAN blocks (don't write them to disk)
+    // Skip MANIFEST and PLAN blocks
     if raw_path == "MANIFEST" || raw_path == "PLAN" {
         return skip_block(response, header_match.end(), footer_re);
     }

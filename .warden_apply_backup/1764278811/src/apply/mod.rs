@@ -11,16 +11,12 @@ use crate::clipboard;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use std::io::{self, Write};
-use std::path::Path;
 use types::{ApplyConfig, ApplyOutcome, ExtractedFiles, Manifest};
 
 /// Runs the apply command logic.
-///
-/// # Errors
-/// Returns error if clipboard access fails.
 pub fn run_apply(config: ApplyConfig) -> Result<ApplyOutcome> {
     let content = clipboard::read_clipboard().context("Failed to read clipboard")?;
-    process_input(&content, &config)
+    process_input(&content, config)
 }
 
 pub fn print_result(outcome: &ApplyOutcome) {
@@ -28,25 +24,18 @@ pub fn print_result(outcome: &ApplyOutcome) {
 }
 
 /// Processes input content directly.
-///
-/// # Errors
-/// Returns error if extraction, write, or git operations fail.
-pub fn process_input(content: &str, config: &ApplyConfig) -> Result<ApplyOutcome> {
+pub fn process_input(content: &str, config: ApplyConfig) -> Result<ApplyOutcome> {
     if content.trim().is_empty() {
-        return Ok(ApplyOutcome::ParseError(
-            "Clipboard/Input is empty".to_string(),
-        ));
+        return Ok(ApplyOutcome::ParseError("Clipboard/Input is empty".to_string()));
     }
 
     let plan_opt = extractor::extract_plan(content);
 
-    if !handle_plan_interaction(plan_opt.as_deref(), config)? {
-        return Ok(ApplyOutcome::ParseError(
-            "Operation cancelled by user.".to_string(),
-        ));
+    if !handle_plan_interaction(plan_opt.as_deref(), &config)? {
+        return Ok(ApplyOutcome::ParseError("Operation cancelled by user.".to_string()));
     }
 
-    execute_apply(content, config, plan_opt.as_deref())
+    execute_apply(content, &config, plan_opt.as_deref())
 }
 
 fn handle_plan_interaction(plan: Option<&str>, config: &ApplyConfig) -> Result<bool> {
@@ -75,39 +64,28 @@ fn handle_plan_interaction(plan: Option<&str>, config: &ApplyConfig) -> Result<b
 fn execute_apply(content: &str, config: &ApplyConfig, plan: Option<&str>) -> Result<ApplyOutcome> {
     let validation = parse_and_validate(content);
 
-    if !matches!(validation, ApplyOutcome::Success { .. }) {
-        return Ok(validation);
-    }
+    match validation {
+        ApplyOutcome::Success { .. } => {
+            if config.dry_run {
+                return Ok(ApplyOutcome::Success {
+                    written: vec!["(Dry Run) Files verified".to_string()],
+                    backed_up: false,
+                });
+            }
 
-    if config.dry_run {
-        return Ok(ApplyOutcome::Success {
-            written: vec!["(Dry Run) Files verified".to_string()],
-            backed_up: false,
-        });
-    }
+            let extracted = extractor::extract_files(content)?;
+            let outcome = writer::write_files(&extracted, config.root)?;
 
-    perform_write_and_commit(content, config, plan)
-}
-
-fn perform_write_and_commit(
-    content: &str,
-    config: &ApplyConfig,
-    plan: Option<&str>,
-) -> Result<ApplyOutcome> {
-    let extracted = extractor::extract_files(content)?;
-    let outcome = writer::write_files(&extracted, config.root)?;
-
-    if config.commit {
-        try_commit(&outcome, plan, config.root);
-    }
-    Ok(outcome)
-}
-
-fn try_commit(outcome: &ApplyOutcome, plan: Option<&str>, root: Option<&Path>) {
-    if let ApplyOutcome::Success { ref written, .. } = outcome {
-        if let Err(e) = git::commit_changes(written, plan, root) {
-            eprintln!("{} Failed to commit: {e}", "⚠️".yellow());
+            if config.commit {
+                if let ApplyOutcome::Success { ref written, .. } = outcome {
+                    if let Err(e) = git::commit_changes(written, plan, config.root) {
+                        eprintln!("{} Failed to commit: {e}", "⚠️".yellow());
+                    }
+                }
+            }
+            Ok(outcome)
         }
+        _ => Ok(validation),
     }
 }
 
