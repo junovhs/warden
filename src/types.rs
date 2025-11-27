@@ -1,31 +1,33 @@
 use std::path::PathBuf;
-
 #[derive(Debug, Clone)]
 pub struct Violation {
-    pub row: usize,
-    pub message: String,
-    pub law: &'static str,
+pub row: usize,
+pub message: String,
+pub law: &'static str,
 }
-
 #[derive(Debug, Clone)]
 pub struct FileReport {
-    pub path: PathBuf,
-    pub token_count: usize,
-    pub complexity_score: usize,
-    pub violations: Vec<Violation>,
+pub path: PathBuf,
+pub token_count: usize,
+pub complexity_score: usize,
+pub violations: Vec<Violation>,
 }
-
 impl FileReport {
-    #[must_use]
-    pub fn is_clean(&self) -> bool {
-        self.violations.is_empty()
-    }
+#[must_use]
+pub fn is_clean(&self) -> bool {
+self.violations.is_empty()
 }
-
+}
 #[derive(Debug, Clone, Default)]
 pub struct ScanReport {
-    pub files: Vec<FileReport>,
-    pub total_tokens: usize,
-    pub total_violations: usize,
-    pub duration_ms: u128,
+pub files: Vec<FileReport>,
+pub total_tokens: usize,
+pub total_violations: usize,
+pub duration_ms: u128,
+}
+impl ScanReport {
+#[must_use]
+pub fn has_errors(&self) -> bool {
+self.total_violations > 0
+}
 }

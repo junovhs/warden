@@ -8,7 +8,7 @@ use std::path::Path;
 use std::process::{self, Command};
 
 use warden_core::apply;
-use warden_core::config::Config;
+use warden_core::config::{Config, GitMode};
 use warden_core::enumerate::FileEnumerator;
 use warden_core::filter::FileFilter;
 use warden_core::heuristics::HeuristicFilter;
@@ -65,16 +65,10 @@ fn run() -> Result<()> {
         Some(Commands::Prompt { copy }) => handle_prompt(copy),
         Some(Commands::Check) => run_command("check"),
         Some(Commands::Fix) => run_command("fix"),
-        Some(Commands::Apply { dry_run }) => handle_apply(dry_run),
+        Some(Commands::Apply { dry_run }) => apply::run(dry_run),
         None if cli.ui => run_tui(),
         None => run_scan(),
     }
-}
-
-fn handle_apply(dry_run: bool) -> Result<()> {
-    let outcome = apply::run_apply(dry_run)?;
-    apply::print_result(&outcome);
-    Ok(())
 }
 
 fn ensure_config_exists() {
@@ -95,10 +89,7 @@ fn init_config() -> Result<()> {
 }
 
 fn handle_prompt(copy: bool) -> Result<()> {
-    let mut config = Config::new();
-    config.load_local_config();
-    let gen = PromptGenerator::new(config.rules.clone());
-    let prompt = gen.generate()?;
+    let prompt = PromptGenerator::generate();
     if copy {
         warden_core::clipboard::copy_to_clipboard(&prompt)?;
         println!("{}", "✓ Copied to clipboard".green());
@@ -108,7 +99,6 @@ fn handle_prompt(copy: bool) -> Result<()> {
     Ok(())
 }
 
-#[allow(clippy::unnecessary_wraps)]
 fn run_command(name: &str) -> Result<()> {
     let mut config = Config::new();
     config.load_local_config();
@@ -157,13 +147,13 @@ fn run_scan() -> Result<()> {
     config.load_local_config();
 
     let files = FileEnumerator::new(config.clone()).enumerate()?;
-    let files = FileFilter::new(&config)?.filter(files);
-    let files = HeuristicFilter::new().filter(files);
+    let files = FileFilter::new(&config).filter(files);
+    let files = HeuristicFilter::new(&config).filter(files);
 
-    let engine = RuleEngine::new(config.clone());
-    let report = engine.scan(files);
+    let engine = RuleEngine::new(config.rules.clone());
+    let report = engine.analyze(&files)?;
 
-    reporting::print_report(&report)?;
+    reporting::print_report(&report);
 
     if report.has_errors() {
         process::exit(1);
@@ -176,11 +166,11 @@ fn run_tui() -> Result<()> {
     config.load_local_config();
 
     let files = FileEnumerator::new(config.clone()).enumerate()?;
-    let files = FileFilter::new(&config)?.filter(files);
-    let files = HeuristicFilter::new().filter(files);
+    let files = FileFilter::new(&config).filter(files);
+    let files = HeuristicFilter::new(&config).filter(files);
 
-    let engine = RuleEngine::new(config.clone());
-    let report = engine.scan(files);
+    let engine = RuleEngine::new(config.rules.clone());
+    let report = engine.analyze(&files)?;
 
     run_tui_with_report(report)
 }
