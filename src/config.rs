@@ -24,6 +24,8 @@ pub struct RuleConfig {
     pub max_function_words: usize,
     #[serde(default)]
     pub ignore_naming_on: Vec<String>,
+    #[serde(default = "default_ignore_tokens")]
+    pub ignore_tokens_on: Vec<String>,
 }
 
 impl Default for RuleConfig {
@@ -35,6 +37,7 @@ impl Default for RuleConfig {
             max_function_args: default_max_args(),
             max_function_words: default_max_words(),
             ignore_naming_on: Vec::new(),
+            ignore_tokens_on: default_ignore_tokens(),
         }
     }
 }
@@ -53,6 +56,9 @@ const fn default_max_args() -> usize {
 }
 const fn default_max_words() -> usize {
     5
+}
+fn default_ignore_tokens() -> Vec<String> {
+    vec!["README.md".to_string(), "lock".to_string()]
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

@@ -45,7 +45,11 @@ impl RuleEngine {
     fn analyze_file(&self, path: &Path) -> Option<FileReport> {
         let content = fs::read_to_string(path).ok()?;
 
-        if content.contains("// warden:ignore") || content.contains("# warden:ignore") {
+        // Support C-style, Hash-style, and HTML-style (Markdown) ignores
+        if content.contains("// warden:ignore")
+            || content.contains("# warden:ignore")
+            || content.contains("<!-- warden:ignore -->")
+        {
             return None;
         }
 
@@ -53,8 +57,9 @@ impl RuleEngine {
         let token_count = Tokenizer::count(&content);
         let mut violations = Vec::new();
 
-        // 1. Law of Atomicity
-        if token_count > self.config.rules.max_file_tokens {
+        // 1. Law of Atomicity (checked unless exempted)
+        if !self.is_exempt_from_tokens(&filename) && token_count > self.config.rules.max_file_tokens
+        {
             violations.push(Violation {
                 row: 0,
                 message: format!(
@@ -77,5 +82,13 @@ impl RuleEngine {
             complexity_score: 0,
             violations,
         })
+    }
+
+    fn is_exempt_from_tokens(&self, filename: &str) -> bool {
+        self.config
+            .rules
+            .ignore_tokens_on
+            .iter()
+            .any(|pattern| filename.contains(pattern))
     }
 }
