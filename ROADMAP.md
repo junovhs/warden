@@ -28,7 +28,7 @@ These aren't style preferences. They're **containment protocols**.
 
 ## v0.5.0 — Bulletproof Apply
 - [x] **Roadmap Integration (warden roadmap)**
-- [ ] **Update README with roadmap docs**
+- [x] **Update README with roadmap docs**
   *Integrated as core module with state-transition logic*
 
 **Theme:** If it applies, it's valid. If it's invalid, it rejects hard.
