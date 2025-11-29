@@ -1,9 +1,9 @@
 // src/pack.rs
+use crate::analysis::RuleEngine;
 use crate::clipboard;
 use crate::config::{Config, GitMode};
 use crate::discovery;
 use crate::prompt::PromptGenerator;
-use crate::rules::RuleEngine;
 use crate::skeleton;
 use crate::tokens::Tokenizer;
 use anyhow::Result;
@@ -27,7 +27,6 @@ pub struct PackOptions {
     pub prompt: bool,
     pub format: OutputFormat,
     pub skeleton: bool,
-    // Config overrides
     pub git_only: bool,
     pub no_git: bool,
     pub code_only: bool,
@@ -36,7 +35,12 @@ pub struct PackOptions {
 /// Entry point for the pack command.
 ///
 /// # Errors
-/// Returns error if file operations or clipboard access fails.
+/// Returns error if:
+/// - Configuration loading fails
+/// - File discovery fails
+/// - Content generation fails
+/// - Clipboard access fails (if --copy is used)
+/// - File writing fails
 pub fn run(options: &PackOptions) -> Result<()> {
     let config = setup_config(options)?;
 

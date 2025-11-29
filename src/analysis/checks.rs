@@ -1,6 +1,6 @@
-// src/checks.rs
+// src/analysis/checks.rs
+use super::metrics;
 use crate::config::RuleConfig;
-use crate::metrics;
 use crate::types::Violation;
 use tree_sitter::{Node, Query, QueryCursor, QueryMatch, TreeCursor};
 
@@ -122,7 +122,6 @@ pub fn check_banned(ctx: &CheckContext, banned_query: &Query, out: &mut Vec<Viol
     }
 }
 
-// Extracted to satisfy complexity limits and clean up logic
 fn process_banned_match(
     m: &QueryMatch,
     names: &[String],
@@ -133,7 +132,6 @@ fn process_banned_match(
     let mut row = 0;
 
     for cap in m.captures {
-        // Fix: Use reference to avoid moving out of slice
         let capture_name = &names[cap.index as usize];
 
         if capture_name == "method" {

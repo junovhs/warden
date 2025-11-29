@@ -1,5 +1,5 @@
-// src/analysis.rs
-use crate::checks::{self, CheckContext};
+// src/analysis/ast.rs
+use super::checks::{self, CheckContext};
 use crate::config::RuleConfig;
 use crate::types::Violation;
 use tree_sitter::{Language, Parser, Query};
@@ -38,8 +38,6 @@ impl Analyzer {
                 (binary_expression operator: ["&&" "||"]) @branch
             "#,
             ),
-            // We catch ALL method calls here and filter for unwrap/expect in Rust.
-            // This bypasses version-specific issues with tree-sitter predicates (#eq?).
             rust_banned: compile_query(
                 tree_sitter_rust::language(),
                 r"(call_expression function: (field_expression field: (field_identifier) @method)) @call",

@@ -1,19 +1,16 @@
 // src/lib.rs
 pub mod analysis;
 pub mod apply;
-pub mod checks;
 pub mod clipboard;
 pub mod config;
 pub mod constants;
 pub mod discovery;
 pub mod error;
-pub mod metrics;
 pub mod pack;
 pub mod project;
 pub mod prompt;
 pub mod reporting;
 pub mod roadmap;
-pub mod rules;
 pub mod skeleton;
 pub mod tokens;
 pub mod tui;

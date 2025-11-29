@@ -1,16 +1,12 @@
-// warden:ignore
+// src/analysis/metrics.rs
 use tree_sitter::{Node, Query, QueryCursor};
 
 /// Calculates the nesting depth of a node.
-///
-/// # Returns
-/// The maximum depth of control structures within the node.
 #[must_use]
 pub fn calculate_max_depth(node: Node) -> usize {
     let mut max_depth = 0;
     let mut cursor = node.walk();
 
-    // We start at 0 relative to function body
     for child in node.children(&mut cursor) {
         if child.kind().contains("block") || child.kind().contains("body") {
             max_depth = std::cmp::max(max_depth, walk_depth(child, 0));
@@ -25,8 +21,6 @@ fn walk_depth(node: Node, current: usize) -> usize {
 
     for child in node.children(&mut cursor) {
         let kind = child.kind();
-        // Uses matches! macro to reduce Cyclomatic Complexity score
-        // (This replaces the massive if/else chain)
         if matches!(
             kind,
             "if_expression"
@@ -55,7 +49,6 @@ fn walk_depth(node: Node, current: usize) -> usize {
 #[must_use]
 pub fn calculate_complexity(node: Node, source: &str, query: &Query) -> usize {
     let mut cursor = QueryCursor::new();
-    // Base complexity is 1
     let mut complexity = 1;
     for _ in cursor.matches(query, node, source.as_bytes()) {
         complexity += 1;

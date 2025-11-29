@@ -1,8 +1,12 @@
-// src/rules.rs
-use crate::analysis::Analyzer;
+// src/analysis/mod.rs
+pub mod ast;
+pub mod checks;
+pub mod metrics;
+
 use crate::config::Config;
 use crate::tokens::Tokenizer;
 use crate::types::{FileReport, ScanReport, Violation};
+use ast::Analyzer;
 use rayon::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};

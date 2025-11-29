@@ -6,6 +6,7 @@ use std::io;
 use std::path::Path;
 use std::process::{self, Command};
 
+use warden_core::analysis::RuleEngine;
 use warden_core::apply;
 use warden_core::apply::types::ApplyContext;
 use warden_core::config::Config;
@@ -15,7 +16,6 @@ use warden_core::project;
 use warden_core::prompt::PromptGenerator;
 use warden_core::reporting;
 use warden_core::roadmap::cli::{handle_command, RoadmapCommand};
-use warden_core::rules::RuleEngine;
 use warden_core::tui::state::App;
 use warden_core::types::ScanReport;
 
@@ -43,7 +43,6 @@ enum Commands {
     Apply,
     #[command(subcommand)]
     Roadmap(RoadmapCommand),
-    /// Generates context.txt for AI (formerly knit)
     Pack {
         #[arg(long, short)]
         stdout: bool,

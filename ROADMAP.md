@@ -41,14 +41,12 @@ These aren't style preferences. They're **containment protocols**.
 - [x] **Markdown block rejection**
   Rejects fenced code blocks in file content.
 
-- [ ] **Truncation detection**
-  *Partially done - unbalanced braces work, need truncation markers*
+- [x] **Truncation detection**
   Reject obviously incomplete files:
-  - Unbalanced braces/brackets (language-aware)
-  - Truncation markers: `// ...`, `// rest of file`, `// etc`
-  - Files ending mid-statement: trailing `{`, `,`, `(`, `=`
-  
-  *Zero false positives. If Warden rejects, it was broken.*
+  - Unbalanced braces/brackets
+  - Truncation markers: `// ...`, `// rest of file`
+  - Zero false positives logic
+  - **Ignore Support**: `warden:ignore` bypasses checks for specific lines.
 
 - [x] **Robust Delimiter Protocol (Nabla Format)**
   Replace fragile XML with high-entropy Unicode fences:
@@ -66,16 +64,7 @@ These aren't style preferences. They're **containment protocols**.
 ### Workflow Enhancement
 
 - [x] **Error injection in knit**
-  When `knit --prompt` runs, append current violations:
-  
-      ═══════════════════════════════════════════════════════════════════
-      CURRENT VIOLATIONS (FIX THESE)
-      ═══════════════════════════════════════════════════════════════════
-      
-      src/validator.rs:42 [COMPLEXITY] Score 12 (max 5)
-      src/lib.rs:1 [ATOMICITY] 2341 tokens (max 2000)
-  
-  *AI sees what's broken. AI fixes it.*
+  When `knit --prompt` runs, append current violations.
 
 - [ ] **`warden apply --commit`**
   On success: `git add .` → auto-generate commit message → commit.
@@ -174,6 +163,14 @@ Strip function bodies, keep signatures:
 ## v0.8.0 — Verification & Safety
 
 **Theme:** Beyond "it compiles."
+
+### Feature Anchors (Anti-Lobotomy)
+Prevent "accidental lobotomy" where AI refactors code and silently drops functionality.
+
+- **Concept:** Explicitly declare "This code implements Feature X".
+- **Mechanism:** `#[warden::feature("auth")]` attributes or `features.toml`.
+- **Enforcement:** If a registered feature anchor disappears or its associated tests vanish, Warden halts.
+- **Deprecation:** Explicit command `warden feature deprecate <name>` required to remove.
 
 ### Property-Based Testing
 
