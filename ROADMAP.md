@@ -28,6 +28,7 @@ These aren't style preferences. They're **containment protocols**.
 
 ## v0.5.0 — Bulletproof Apply
 - [x] **Roadmap Integration (warden roadmap)**
+- [ ] **Update README with roadmap docs**
   *Integrated as core module with state-transition logic*
 
 **Theme:** If it applies, it's valid. If it's invalid, it rejects hard.
@@ -41,6 +42,7 @@ These aren't style preferences. They're **containment protocols**.
   Rejects fenced code blocks in file content.
 
 - [ ] **Truncation detection**
+  *Partially done - unbalanced braces work, need truncation markers*
   Reject obviously incomplete files:
   - Unbalanced braces/brackets (language-aware)
   - Truncation markers: `// ...`, `// rest of file`, `// etc`
@@ -63,7 +65,7 @@ These aren't style preferences. They're **containment protocols**.
 
 ### Workflow Enhancement
 
-- [ ] **Error injection in knit**
+- [x] **Error injection in knit**
   When `knit --prompt` runs, append current violations:
   
       ═══════════════════════════════════════════════════════════════════
