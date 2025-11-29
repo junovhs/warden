@@ -94,7 +94,8 @@ Strip function bodies, keep signatures:
     // Skeleton (Map)
     pub fn process(data: &[u8]) -> Result<Output> { ... }
 
-- [ ] **`knit --skeleton`** - All files skeletonized
+- [x] **`knit --skeleton`** - All files skeletonized
+  *Implemented using tree-sitter for RS, PY, TS*
 - [ ] **`knit src/main.rs --smart`** - Full code for target + skeletons for rest
 
 ### Dependency Graphing

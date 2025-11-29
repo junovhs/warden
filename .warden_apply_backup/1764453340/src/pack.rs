@@ -13,15 +13,13 @@ use std::fmt::Write;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, ValueEnum, Default)]
+#[derive(Debug, Clone, ValueEnum)]
 pub enum OutputFormat {
-    #[default]
     Text,
     Xml,
 }
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Default)]
 pub struct PackOptions {
     pub stdout: bool,
     pub copy: bool,
@@ -77,12 +75,7 @@ fn setup_config(opts: &PackOptions) -> Result<Config> {
     Ok(config)
 }
 
-/// Generates the context content string from a list of files.
-/// Exposed for testing purposes.
-///
-/// # Errors
-/// Returns error if file reading fails.
-pub fn generate_content(files: &[PathBuf], opts: &PackOptions, config: &Config) -> Result<String> {
+fn generate_content(files: &[PathBuf], opts: &PackOptions, config: &Config) -> Result<String> {
     let mut ctx = String::with_capacity(100_000);
 
     if opts.prompt {
