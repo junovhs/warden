@@ -168,8 +168,21 @@ fn output_result(content: &str, tokens: usize, opts: &PackOptions) -> Result<()>
         return Ok(());
     }
 
-    fs::write("context.txt", content)?;
+    // Default: Write to file and copy file path to clipboard
+    let output_path = PathBuf::from("context.txt");
+    fs::write(&output_path, content)?;
     println!("✅ Generated 'context.txt'");
+
+    // Copy file path to clipboard for drag-drop style paste
+    if let Ok(abs_path) = fs::canonicalize(&output_path) {
+        if clipboard::copy_file_path(&abs_path).is_ok() {
+            println!(
+                "{}",
+                "📎 File path copied to clipboard (paste as attachment)".cyan()
+            );
+        }
+    }
+
     println!("{info}");
     Ok(())
 }
@@ -210,7 +223,7 @@ fn pack_xml(files: &[PathBuf], out: &mut String, skeleton: bool) -> Result<()> {
                     out.push_str(&content.replace("]]>", "]]]]><![CDATA[>"));
                 }
             }
-            Err(e) => writeln!(out, "ERROR READING FILE: {e}")?,
+            Err(e) => writeln!(out, "<!-- ERROR: {e} -->")?,
         }
         writeln!(out, "]]></document>")?;
     }

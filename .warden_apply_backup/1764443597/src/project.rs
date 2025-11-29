@@ -131,8 +131,7 @@ fn unknown_commands() -> String {
         .to_string()
 }
 
-#[must_use]
-pub fn npx_cmd() -> &'static str {
+fn npx_cmd() -> &'static str {
     if cfg!(windows) {
         "npx.cmd"
     } else {

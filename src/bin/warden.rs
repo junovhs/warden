@@ -48,8 +48,9 @@ enum Commands {
         stdout: bool,
         #[arg(long, short)]
         copy: bool,
-        #[arg(long, short)]
-        prompt: bool,
+        /// Skip including the system prompt (prompt is included by default)
+        #[arg(long)]
+        noprompt: bool,
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
         #[arg(long)]
@@ -100,7 +101,7 @@ fn dispatch_subcommand(cmd: &Commands) -> Result<()> {
         Commands::Pack {
             stdout,
             copy,
-            prompt,
+            noprompt,
             format,
             skeleton,
             git_only,
@@ -110,7 +111,7 @@ fn dispatch_subcommand(cmd: &Commands) -> Result<()> {
         } => pack::run(&PackOptions {
             stdout: *stdout,
             copy: *copy,
-            prompt: *prompt,
+            prompt: !*noprompt,
             format: format.clone(),
             skeleton: *skeleton,
             git_only: *git_only,
