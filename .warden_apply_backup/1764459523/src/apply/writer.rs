@@ -38,7 +38,6 @@ pub fn write_files(
     Ok(ApplyOutcome::Success {
         written,
         deleted,
-        roadmap_results: Vec::new(),
         backed_up: backup_path.is_some(),
     })
 }

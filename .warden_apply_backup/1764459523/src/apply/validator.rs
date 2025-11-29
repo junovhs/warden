@@ -78,7 +78,6 @@ pub fn validate(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome
     ApplyOutcome::Success {
         written,
         deleted,
-        roadmap_results: Vec::new(),
         backed_up: true,
     }
 }

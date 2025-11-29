@@ -26,7 +26,6 @@ pub enum ApplyOutcome {
     Success {
         written: Vec<String>,
         deleted: Vec<String>,
-        roadmap_results: Vec<String>, // Added field
         backed_up: bool,
     },
     ValidationFailure {

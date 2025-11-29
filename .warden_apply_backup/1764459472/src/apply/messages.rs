@@ -7,9 +7,8 @@ pub fn print_outcome(outcome: &ApplyOutcome) {
         ApplyOutcome::Success {
             written,
             deleted,
-            roadmap_results,
             backed_up,
-        } => print_success(written, deleted, roadmap_results, *backed_up),
+        } => print_success(written, deleted, *backed_up),
         ApplyOutcome::ValidationFailure {
             errors,
             missing,
@@ -23,27 +22,18 @@ pub fn print_outcome(outcome: &ApplyOutcome) {
     }
 }
 
-fn print_success(written: &[String], deleted: &[String], roadmap: &[String], backed_up: bool) {
+fn print_success(written: &[String], deleted: &[String], backed_up: bool) {
     println!("{}", "✅ Apply successful!".green().bold());
     if backed_up {
         println!("   (Backup created in .warden_apply_backup/)");
     }
     println!();
-    
     for file in written {
         println!("   {} {file}", "✓".green());
     }
     for file in deleted {
         println!("   {} {file}", "✗".red());
     }
-    
-    if !roadmap.is_empty() {
-        println!("{}", "\n   Roadmap Updates:".cyan());
-        for msg in roadmap {
-             println!("   {msg}");
-        }
-    }
-    
     println!();
     println!("Run {} to verify.", "warden check".yellow());
 }

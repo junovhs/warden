@@ -8,11 +8,9 @@ pub mod validator;
 pub mod writer;
 
 use crate::clipboard;
-use crate::roadmap;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use std::io::{self, Write};
-use std::path::Path;
 use std::process::Command;
 use types::{ApplyContext, ApplyOutcome, ExtractedFiles, Manifest};
 
@@ -85,8 +83,6 @@ fn validate_payload(content: &str) -> ApplyOutcome {
         Err(e) => return ApplyOutcome::ParseError(e),
     };
 
-    // If validation passes (or trivially passes with empty files), we proceed.
-    // Important: validator handles EMPTY manifests gracefully (returns Success with empty lists).
     validator::validate(&manifest, &extracted)
 }
 
@@ -98,30 +94,11 @@ fn apply_and_verify(content: &str, ctx: &ApplyContext, plan: Option<&str>) -> Re
         return Ok(ApplyOutcome::Success {
             written: vec!["(Dry Run) Files verified".to_string()],
             deleted: vec![],
-            roadmap_results: vec![],
             backed_up: false,
         });
     }
 
-    // 1. Apply Files
-    let mut outcome = writer::write_files(&manifest, &extracted, None)?;
-
-    // 2. Apply Roadmap (if present)
-    // We assume standard location "ROADMAP.md" for implicit apply
-    let roadmap_path = Path::new("ROADMAP.md");
-    let mut roadmap_results = Vec::new();
-
-    if roadmap_path.exists() {
-        match roadmap::handle_input(roadmap_path, content) {
-            Ok(results) => roadmap_results = results,
-            Err(e) => eprintln!("{} Roadmap update failed: {e}", "⚠️".yellow()),
-        }
-    }
-
-    // Merge roadmap results into outcome
-    if let ApplyOutcome::Success { roadmap_results: ref mut rr, .. } = outcome {
-        rr.append(&mut roadmap_results);
-    }
+    let outcome = writer::write_files(&manifest, &extracted, None)?;
 
     verify_and_commit(&outcome, ctx, plan)?;
     Ok(outcome)
@@ -130,14 +107,6 @@ fn apply_and_verify(content: &str, ctx: &ApplyContext, plan: Option<&str>) -> Re
 fn verify_and_commit(outcome: &ApplyOutcome, ctx: &ApplyContext, plan: Option<&str>) -> Result<()> {
     if !matches!(outcome, ApplyOutcome::Success { .. }) {
         return Ok(());
-    }
-
-    // Special case: If NO files changed AND NO roadmap changes, we don't commit.
-    if let ApplyOutcome::Success { written, deleted, roadmap_results, .. } = outcome {
-        if written.is_empty() && deleted.is_empty() && roadmap_results.is_empty() {
-             println!("{}", "No changes detected (Files or Roadmap).".yellow());
-             return Ok(());
-        }
     }
 
     if !verify_application(ctx)? {
