@@ -7,14 +7,60 @@ use std::fs;
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
 
+#[derive(Debug, Clone, Copy)]
 pub struct AuditOptions {
     pub strict: bool,
 }
 
-pub fn run(roadmap: &Roadmap, root: &Path, _opts: AuditOptions) {
+#[derive(Debug)]
+pub struct AuditViolation {
+    pub task_id: String,
+    pub task_text: String,
+    pub reason: ViolationReason,
+}
+
+#[derive(Debug)]
+pub enum ViolationReason {
+    MissingTestFile(String),
+    MissingTestFunction { file: String, function: String },
+    NoTraceability, // Heuristic failed
+}
+
+#[derive(Debug)]
+pub struct AuditReport {
+    pub violations: Vec<AuditViolation>,
+    pub total_checked: usize,
+}
+
+impl AuditReport {
+    fn new() -> Self {
+        Self {
+            violations: Vec::new(),
+            total_checked: 0,
+        }
+    }
+}
+
+pub fn run(roadmap: &Roadmap, root: &Path, opts: AuditOptions) {
     println!("{}", "🕵️  Roadmap Traceability Audit".bold().cyan());
     println!("{}", "─────────────────────────────────────".dimmed());
 
+    let report = scan(roadmap, root, &opts);
+
+    if report.total_checked == 0 {
+        println!("{}", "No completed tasks to audit.".yellow());
+        return;
+    }
+
+    for violation in &report.violations {
+        print_violation(violation);
+    }
+
+    print_summary(report.violations.len());
+}
+
+#[must_use]
+pub fn scan(roadmap: &Roadmap, root: &Path, _opts: &AuditOptions) -> AuditReport {
     let tasks = roadmap.all_tasks();
     let completed: Vec<&&Task> = tasks
         .iter()
@@ -22,13 +68,13 @@ pub fn run(roadmap: &Roadmap, root: &Path, _opts: AuditOptions) {
         .collect();
 
     if completed.is_empty() {
-        println!("{}", "No completed tasks to audit.".yellow());
-        return;
+        return AuditReport::new();
     }
 
     // Heuristic scan for un-anchored tasks
     let scanned_test_files = scan_test_files(root);
-    let mut missing_count = 0;
+    let mut report = AuditReport::new();
+    report.total_checked = completed.len();
 
     for task in completed {
         // Skip if marked as [no-test]
@@ -36,31 +82,45 @@ pub fn run(roadmap: &Roadmap, root: &Path, _opts: AuditOptions) {
             continue;
         }
 
-        if !verify_task(task, root, &scanned_test_files) {
-            print_missing(task);
-            missing_count += 1;
+        if let Some(reason) = check_task(task, root, &scanned_test_files) {
+            report.violations.push(AuditViolation {
+                task_id: task.id.clone(),
+                task_text: task.text.clone(),
+                reason,
+            });
         }
     }
 
-    print_summary(missing_count);
+    report
 }
 
-fn verify_task(task: &Task, root: &Path, scanned_files: &[String]) -> bool {
+fn check_task(task: &Task, root: &Path, scanned_files: &[String]) -> Option<ViolationReason> {
     // 1. Priority: Explicit Anchors
     if !task.tests.is_empty() {
-        return task.tests.iter().all(|t| verify_anchor(t, root));
+        for test_ref in &task.tests {
+            if let Some(reason) = verify_anchor(test_ref, root) {
+                return Some(reason);
+            }
+        }
+        return None;
     }
 
     // 2. Fallback: Slug Heuristic
     let slug = slugify(&task.text).replace('-', "_");
     let id_slug = task.id.replace('-', "_");
 
-    scanned_files
+    let found = scanned_files
         .iter()
-        .any(|f| f.contains(&slug) || f.contains(&id_slug))
+        .any(|f| f.contains(&slug) || f.contains(&id_slug));
+
+    if found {
+        None
+    } else {
+        Some(ViolationReason::NoTraceability)
+    }
 }
 
-fn verify_anchor(anchor: &str, root: &Path) -> bool {
+fn verify_anchor(anchor: &str, root: &Path) -> Option<ViolationReason> {
     // Support "path/to/file.rs::function_name" syntax
     let (file_part, fn_part) = if let Some((f, n)) = anchor.split_once("::") {
         (f, Some(n))
@@ -71,18 +131,23 @@ fn verify_anchor(anchor: &str, root: &Path) -> bool {
     let path = root.join(file_part.trim());
     
     if !path.exists() || !path.is_file() {
-        return false;
+        return Some(ViolationReason::MissingTestFile(file_part.trim().to_string()));
     }
 
     // If function name is specified, verify it exists in the file content
     if let Some(func_name) = fn_part {
+        let name = func_name.trim();
         if let Ok(content) = fs::read_to_string(&path) {
-            return check_definition(&path, &content, func_name.trim());
+            if !check_definition(&path, &content, name) {
+                return Some(ViolationReason::MissingTestFunction {
+                    file: file_part.trim().to_string(),
+                    function: name.to_string(),
+                });
+            }
         }
-        return false; // Could not read file
     }
 
-    true
+    None
 }
 
 fn check_definition(path: &Path, content: &str, name: &str) -> bool {
@@ -126,13 +191,22 @@ fn is_match_commented(content: &str, start_idx: usize, ext: &str) -> bool {
     }
 }
 
-fn print_missing(task: &Task) {
+fn print_violation(v: &AuditViolation) {
+    let msg = match &v.reason {
+        ViolationReason::MissingTestFile(f) => format!("Missing File: {f}"),
+        ViolationReason::MissingTestFunction { file, function } => {
+            format!("Missing Function: '{function}' in {file}")
+        }
+        ViolationReason::NoTraceability => "No test file found (heuristic)".to_string(),
+    };
+
     println!(
         "{} {} (id: {})",
-        "⚠️  Missing Test:".red(),
-        task.text.bold(),
-        task.id.dimmed()
+        "⚠️  Traceability Fail:".red(),
+        v.task_text.bold(),
+        v.task_id.dimmed()
     );
+    println!("   └─ {msg}");
 }
 
 fn print_summary(missing: usize) {
