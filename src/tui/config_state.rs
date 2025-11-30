@@ -122,29 +122,24 @@ impl ConfigApp {
         self.modified = true;
         match self.selected_field {
             0 => {
-                if self.rules.max_file_tokens > 100 {
-                    self.rules.max_file_tokens -= 100;
-                }
+                self.rules.max_file_tokens =
+                    self.rules.max_file_tokens.saturating_sub(100).max(100);
             }
             1 => {
-                if self.rules.max_cyclomatic_complexity > 1 {
-                    self.rules.max_cyclomatic_complexity -= 1;
-                }
+                self.rules.max_cyclomatic_complexity =
+                    self.rules.max_cyclomatic_complexity.saturating_sub(1).max(1);
             }
             2 => {
-                if self.rules.max_nesting_depth > 1 {
-                    self.rules.max_nesting_depth -= 1;
-                }
+                self.rules.max_nesting_depth =
+                    self.rules.max_nesting_depth.saturating_sub(1).max(1);
             }
             3 => {
-                if self.rules.max_function_args > 1 {
-                    self.rules.max_function_args -= 1;
-                }
+                self.rules.max_function_args =
+                    self.rules.max_function_args.saturating_sub(1).max(1);
             }
             4 => {
-                if self.rules.max_function_words > 1 {
-                    self.rules.max_function_words -= 1;
-                }
+                self.rules.max_function_words =
+                    self.rules.max_function_words.saturating_sub(1).max(1);
             }
             _ => {}
         }
@@ -154,7 +149,8 @@ impl ConfigApp {
         if let Err(e) = save_to_file(&self.rules, &self.commands) {
             self.saved_message = Some((format!("Error: {e}"), std::time::Instant::now()));
         } else {
-            self.saved_message = Some(("Saved warden.toml!".to_string(), std::time::Instant::now()));
+            self.saved_message =
+                Some(("Saved warden.toml!".to_string(), std::time::Instant::now()));
             self.modified = false;
         }
     }
