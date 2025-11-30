@@ -47,20 +47,11 @@ The type system is your ally. Don't let AI lie to the compiler.
 
 ---
 
-## The Dream
-
-Take any file to a fresh AI conversation. Work on it. Bring it back.
-
-**It slots in perfectly. Every time. Guaranteed.**
-
-This is the ultimate dream of Warden: modularity so strict that files become interchangeable, verifiable units.
-
----
-
 ## Quick Start
 
     cd your-project
     warden              # Scan for violations (auto-creates warden.toml)
+    warden config       # Open the interactive configuration deck
     warden pack --prompt # Generate context.txt for AI
 
 That's it. Warden detects your project type (Rust/Node/Python/Go) and configures itself.
@@ -81,9 +72,11 @@ Creates `context.txt` containing:
 - Current violations (AI sees what to fix)
 - Token count
 
+If **Auto-Copy** is enabled, it's already in your clipboard.
+
 ### 2. Chat with AI
 
-`context.txt` will be generated and applied to your clipboard. Paste the file into Claude/GPT/Gemini. Ask for changes.
+Paste the file into Claude/GPT/Gemini. Ask for changes.
 
 The AI responds with structured output:
 
@@ -103,7 +96,6 @@ This:
 - Extracts file blocks from clipboard
 - **Validates paths** (blocks traversal, sensitive files, hidden files)
 - **Rejects truncated output** (unbalanced braces, `// ...` markers)
-- **Rejects markdown artifacts** (no fenced code blocks in source)
 - Creates timestamped backup
 - Writes files atomically
 - On failure: copies AI-friendly error to clipboard
@@ -121,91 +113,62 @@ If `warden apply` fails, the error is already in your clipboard. Paste it back t
 
 ---
 
-## Commands
+## Visual Interfaces
 
-### Core Analysis & Validation
-| Command | Description |
-|---------|-------------|
-| `warden` | Run structural scan (complexity, tokens, etc.) |
-| `warden --ui` | Interactive TUI dashboard |
-| `warden check` | Run configured linter (e.g., clippy, ruff) |
-| `warden fix` | Run configured formatter |
+### 1. Configuration Flight Deck
 
-### Context & Packaging
-| Command | Description |
-|---------|-------------|
-| `warden pack` | Generate `context.txt` from codebase |
-| `warden pack --prompt` | Include system prompt & violations |
-| `warden pack --skeleton` | Export structure only (signatures) |
-| `warden pack --git-only` | Only include files tracked by git |
-| `warden pack --stdout` | Output to stdout instead of file |
+    warden config
 
-### Application & Safety
-| Command | Description |
-|---------|-------------|
-| `warden apply` | Apply AI response from clipboard |
-| `warden apply --dry-run` | Validate output without writing to disk |
+An interactive TUI for managing your project's strictness and workflow.
 
-### Roadmap Management
-| Command | Description |
-|---------|-------------|
-| `warden roadmap init` | Create new ROADMAP.md |
-| `warden roadmap prompt` | Copy AI teaching prompt to clipboard |
-| `warden roadmap apply` | Apply roadmap commands from clipboard |
-| `warden roadmap show` | Display roadmap status tree |
-| `warden roadmap tasks` | List tasks (filterable by pending/done) |
+**Features:**
+*   **Global Protocol:** One-click presets (Strict / Standard / Relaxed).
+*   **Threat Analytics:** A live gauge showing your containment integrity score.
+*   **Workflow Automation:** Toggle auto-copy, auto-format, and auto-commit.
+*   **Visual Themes:** Switch between NASA (High Contrast), Cyberpunk (Neon), and Corporate (Subtle).
 
-### Utilities
-| Command | Description |
-|---------|-------------|
-| `warden --init` | Create/regenerate `warden.toml` |
-| `warden prompt` | Print system prompt only |
-| `warden prompt -c` | Copy system prompt to clipboard |
+### 2. Scan Dashboard
+
+    warden --ui
+
+A visual explorer for scan results. Filter by error, sort by size, and inspect file health.
 
 ---
 
 ## Configuration
 
-Warden auto-generates `warden.toml` based on project type:
+Warden uses `warden.toml`. You can edit it manually or via `warden config`.
 
-**Rust:**
+```toml
+[rules]
+max_file_tokens = 2000
+max_cyclomatic_complexity = 8
+max_nesting_depth = 3
+max_function_args = 5
+max_function_words = 5
+ignore_naming_on = ["tests", "spec"]
+ignore_tokens_on = ["lock", ".md"]
 
-    [rules]
-    max_file_tokens = 2000
-    max_cyclomatic_complexity = 5
-    max_nesting_depth = 2
-    
-    [commands]
-    check = "cargo clippy --all-targets -- -D warnings -D clippy::pedantic"
-    fix = "cargo fmt"
+[preferences]
+theme = "Cyberpunk"
+auto_copy = true
+auto_format = false
+auto_commit = false
+commit_prefix = "AI: "
+progress_bars = true
 
-**Node/TypeScript:**
+[commands]
+check = ["cargo clippy", "cargo test"]
+fix = "cargo fmt"
+```
 
-    [commands]
-    check = "npx @biomejs/biome check src/"
-    fix = "npx @biomejs/biome check --write src/"
+### Protocol Levels
 
-**Python:**
-
-    [commands]
-    check = "ruff check ."
-    fix = "ruff check --fix ."
-
-### Tuning Strictness
-
-Strict (for greenfield):
-
-    [rules]
-    max_file_tokens = 1500
-    max_cyclomatic_complexity = 4
-    max_nesting_depth = 2
-
-Relaxed (for legacy adoption):
-
-    [rules]
-    max_file_tokens = 3000
-    max_cyclomatic_complexity = 10
-    max_nesting_depth = 4
+| Preset | Tokens | Complexity | Depth | Use Case |
+|--------|--------|------------|-------|----------|
+| **Strict** | 1500 | 4 | 2 | Mission-critical / Greenfield |
+| **Standard** | 2000 | 8 | 3 | Recommended balance |
+| **Relaxed** | 3000 | 12 | 4 | Legacy / Prototyping |
 
 ---
 
@@ -230,10 +193,6 @@ AI output often gets cut off. Warden catches:
 - Truncation markers: `// ...`, `// rest of file`
 - Files ending mid-statement
 
-### Markdown Rejection
-
-Chat interfaces love to wrap code in fenced blocks. Warden rejects any file containing triple backticks or tildes—these corrupt source files.
-
 ### Atomic Backups
 
 Before any write: `.warden_apply_backup/TIMESTAMP/`
@@ -242,46 +201,12 @@ Your original files are always preserved.
 
 ---
 
-## The Nabla Format
-
-XML tags get mangled by chat interfaces. Warden uses Unicode delimiters that never appear in real code:
-
-    ∇∇∇ path/to/file.rs ∇∇∇
-    fn main() {
-        println!("Hello");
-    }
-    ∆∆∆
-
-- `∇∇∇` (nabla) opens a file block
-- `∆∆∆` (delta) closes it
-- Never interpreted as HTML
-- Never rendered as markdown
-- Trivial to parse
-
----
-
-## TUI Dashboard
-
-    warden --ui
-
-| Key | Action |
-|-----|--------|
-| `j/k` | Navigate files |
-| `s` | Cycle sort (name/size/errors) |
-| `f` | Toggle error filter |
-| `q` | Quit |
-
----
-
 ## Roadmap Management
 
 Warden includes AI-friendly roadmap management. Instead of AI rewriting your entire roadmap, it sends surgical commands.
 
-### The Workflow
-
-1. Run `warden roadmap prompt`
-2. Paste to AI, describe what changed
-3. AI responds with commands:
+1. Run `warden roadmap prompt` (Copies current state + instructions)
+2. AI responds with commands:
 ```
 ===ROADMAP===
 CHECK truncation-detection
@@ -289,73 +214,7 @@ ADD v0.5.0 "New feature" AFTER truncation-detection
 NOTE auth-system "Needs refactor"
 ===END===
 ```
-
-4. Run `warden roadmap apply`
-
-### Commands
-
-| Command | Example |
-|---------|---------|
-| `CHECK` | `CHECK task-name` |
-| `UNCHECK` | `UNCHECK task-name` |
-| `ADD` | `ADD v0.1.0 "New task"` |
-| `ADD AFTER` | `ADD v0.1.0 "Task" AFTER other-task` |
-| `DELETE` | `DELETE old-task` |
-| `UPDATE` | `UPDATE task "New description"` |
-| `NOTE` | `NOTE task "Implementation note"` |
-
-Tasks are identified by slugified names. `Truncation detection` becomes `truncation-detection`.
-
----
-
-## Coming Soon: The Contract Protocol
-
-AI will declare intent before writing code. Warden verifies the output matches.
-
-    ∇∇∇ CONTRACT ∇∇∇
-    GOAL: Refactor parser for clarity
-    
-    REFACTOR FN src/parser.rs:parse_header
-        ASSERT complexity <= 4
-        ASSERT depth <= 1
-    
-    CREATE STRUCT src/types.rs:Header
-        ASSERT public == true
-    
-    UPDATE FILE src/lib.rs
-        ASSERT tokens < 2000
-    ∆∆∆
-
-If AI hallucinates complex code or touches undeclared files, the contract fails. No human judgment needed—pass/fail.
-
----
-
-## Why These Rules?
-
-For humans, complexity limits are debatable style choices.
-
-For AI, they're **containment protocols**:
-
-| Metric | Human Value | AI Value |
-|--------|-------------|----------|
-| Cyclomatic Complexity | Debatable | **Critical** - bounds hallucination surface |
-| Nesting Depth | Readability | **Critical** - AI loses scope tracking |
-| Function Length | Preference | **Critical** - attention degrades |
-| File Size | Organization | **Critical** - context economics |
-
-We don't enforce low complexity because it makes "better" code. We enforce it because it makes **verifiable** code.
-
----
-
-## Languages
-
-Currently supported:
-- **Rust** - Full analysis (complexity, nesting, arity, safety)
-- **TypeScript/JavaScript** - Full analysis
-- **Python** - Full analysis
-- **Go** - Preliminary support
-
-Coming soon: C/C++, Java/Kotlin
+3. Run `warden roadmap apply` (Parses and updates `ROADMAP.md`)
 
 ---
 
