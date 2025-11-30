@@ -189,7 +189,7 @@
 - [x] **Law of Complexity in prompt** <!-- test: tests/integration_pack.rs::test_prompt_includes_limits -->
 - [x] **Nabla format instructions** <!-- test: tests/integration_pack.rs::test_prompt_includes_nabla_instructions -->
 - [x] **Footer reminder** <!-- test: tests/integration_pack.rs::test_reminder_is_concise -->
-- [x] **Violation injection** <!-- test: tests/unit_pack.rs::test_violations_injected -->
+- [x] **Violation injection <!-- test: tests/unit_pack_violations.rs::test_violations_injected -->**
 
 ### Skeleton System
 - [x] **Rust body → { ... }** <!-- test: tests/integration_skeleton.rs::test_clean_rust_basic -->
