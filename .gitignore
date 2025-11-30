@@ -1,7 +1,6 @@
 # Rust build artifacts
 /target/
 /docs/
-/tests/
 /Cargo.lock
 
 # Logs and temp files
