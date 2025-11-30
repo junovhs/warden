@@ -30,7 +30,6 @@ pub struct Task {
     pub indent: u8,
     pub line: usize,
     pub children: Vec<Task>,
-    pub tests: Vec<String>, // Explicitly linked test files
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

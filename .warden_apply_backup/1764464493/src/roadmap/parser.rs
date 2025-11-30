@@ -150,29 +150,17 @@ fn parse_task(line: &str, line_num: usize) -> Option<Task> {
         (TaskStatus::Complete, &t[5..])
     };
 
-    let mut parts = rest.split("<!--");
-    let text_part = parts.next()?.trim().trim_matches(|c| c == '*' || c == ' ');
-    let id = crate::roadmap::slugify(text_part);
-
-    // Extract tests from comments: <!-- test: path/to/file.rs -->
-    let mut tests = Vec::new();
-    for part in parts {
-        if let Some(content) = part.split("-->").next() {
-            if let Some(path) = content.trim().strip_prefix("test:") {
-                 tests.push(path.trim().to_string());
-            }
-        }
-    }
+    let text = rest.split("<!--").next()?.trim().trim_matches('*');
+    let id = crate::roadmap::slugify(text);
 
     Some(Task {
         id,
         path: String::new(),
-        text: text_part.into(),
+        text: text.into(),
         status: stat,
         indent: 0,
         line: line_num,
         children: vec![],
-        tests,
     })
 }
 

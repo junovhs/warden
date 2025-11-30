@@ -55,7 +55,7 @@ fn print_summary(missing: usize) {
             "{}",
             format!("❌ Found {missing} tasks without detected tests.").red().bold()
         );
-        println!("   (Tip: Add <!-- test: tests/my_test.rs --> to the task in ROADMAP.md)");
+        println!("   (Tip: Create a test file named after the task slug)");
     }
 }
 
@@ -95,25 +95,16 @@ fn is_test_file(entry: &DirEntry) -> bool {
 
 fn has_code_extension(path: &Path) -> bool {
     path.extension()
+        .and_then(|s| s.to_str())
         .is_some_and(|ext| {
-            ext.eq_ignore_ascii_case("rs")
-                || ext.eq_ignore_ascii_case("ts")
-                || ext.eq_ignore_ascii_case("js")
-                || ext.eq_ignore_ascii_case("py")
-                || ext.eq_ignore_ascii_case("go")
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "rs" | "ts" | "js" | "py" | "go"
+            )
         })
 }
 
 fn has_test(task: &Task, test_files: &[String]) -> bool {
-    // 1. Check for explicit anchor
-    if !task.tests.is_empty() {
-        return task.tests.iter().all(|t| {
-             let target = t.to_lowercase();
-             test_files.iter().any(|f| f.contains(&target))
-        });
-    }
-
-    // 2. Fallback to slug heuristic
     let slug = slugify(&task.text).replace('-', "_");
     let id_slug = task.id.replace('-', "_");
 

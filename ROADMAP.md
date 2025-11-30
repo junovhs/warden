@@ -18,22 +18,22 @@ These aren't style preferences. They're **containment protocols**.
 
 ## Current State: v0.4.1
 
-- [x] Core loop: knit → chat → apply → verify
-- [x] Self-hosting (Warden passes its own rules)
-- [x] Path safety validation (traversal, absolute, sensitive, hidden)
-- [x] Markdown block rejection
-- [x] Backup system
+- [x] **Core loop: knit → chat → apply → verify <!-- test: tests/integration_core.rs -->**
+- [x] **Self-hosting (Warden passes its own rules) <!-- test: tests/integration_core.rs -->**
+- [x] **Path safety validation <!-- test: tests/security_validation.rs -->**
+- [x] **Markdown block rejection <!-- test: tests/integration_apply.rs -->**
+- [x] **Backup system <!-- test: tests/integration_apply.rs -->**
 
 ---
 
 ## v0.5.0 — Bulletproof Apply
-- [x] **Roadmap Integration (warden roadmap)**
+- [x] **Roadmap Integration (warden roadmap) <!-- test: tests/integration_roadmap.rs -->**
 - [x] **Update README with roadmap docs**
-- [x] **Pack defaults to --prompt, --noprompt to disable**
+- [x] **Pack defaults to --prompt, --noprompt to disable <!-- test: tests/integration_pack.rs -->**
 - [x] **Pack copies file path to clipboard for attachment paste**
 - [x] **TypeScript auto-detection uses biome**
-- [x] **Integration tests for all features**
-- [x] **Unified Apply**
+- [x] **Integration tests for all features <!-- test: tests/integration_core.rs -->**
+- [x] **Unified Apply <!-- test: tests/integration_apply.rs -->**
   *Implemented: warden apply now scans for ===ROADMAP=== blocks*
   *Integrated as core module with state-transition logic*
 
@@ -47,14 +47,14 @@ These aren't style preferences. They're **containment protocols**.
 - [x] **Markdown block rejection**
   Rejects fenced code blocks in file content.
 
-- [x] **Truncation detection**
+- [x] **Truncation detection <!-- test: tests/integration_apply.rs -->**
   Reject obviously incomplete files:
   - Unbalanced braces/brackets
   - Truncation markers: `// ...`, `// rest of file`
   - Zero false positives logic
   - **Ignore Support**: `warden:ignore` bypasses checks for specific lines.
 
-- [x] **Robust Delimiter Protocol (Nabla Format)**
+- [x] **Robust Delimiter Protocol (Nabla Format) <!-- test: tests/integration_pack.rs -->**
   Replace fragile XML with high-entropy Unicode fences:
   
       ∇∇∇ src/main.rs ∇∇∇
@@ -79,8 +79,8 @@ These aren't style preferences. They're **containment protocols**.
 ---
 
 ## v0.6.0 — Context Intelligence
-- [x] **Smart Context (Focus Mode)**
-- [x] **Config Wizard**
+- [x] **Smart Context (Focus Mode) <!-- test: tests/integration_pack.rs -->**
+- [x] **Config Wizard <!-- test: src/wizard.rs -->**
   *Implemented: warden pack <target> skeletonizes background files*
 
 **Theme:** The Map vs. Territory problem.
@@ -99,14 +99,14 @@ Strip function bodies, keep signatures:
     // Skeleton (Map)
     pub fn process(data: &[u8]) -> Result<Output> { ... }
 
-- [x] **`knit --skeleton`** - All files skeletonized
+- [x] **`knit --skeleton` - All files skeletonized <!-- test: tests/integration_skeleton.rs -->**
   *Implemented using tree-sitter for RS, PY, TS*
-- [x] **`knit src/main.rs --smart`** - Full code for target + skeletons for rest
+- [x] **`knit src/main.rs --smart` - Full code for target + skeletons for rest <!-- test: tests/integration_pack.rs -->**
   *Implemented as: warden pack --target <file>*
 
 ### Dependency Graphing
 
-- [x] Parse `mod`, `use`, `import`, `require` statements
+- [x] **Parse `mod`, `use`, `import`, `require` statements <!-- test: tests/integration_graph.rs -->**
   *Implemented in src/graph/imports.rs and src/graph/resolver.rs*
 - [ ] Build local dependency graph
 - [ ] Auto-include dependencies in context
@@ -114,7 +114,7 @@ Strip function bodies, keep signatures:
 ---
 
 ## v0.7.0 — Verification & Safety
-- [x] **Test Traceability**
+- [x] **Test Traceability <!-- test: src/roadmap/audit.rs -->**
 
 **Theme:** Beyond "it compiles."
 
