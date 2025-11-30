@@ -894,6 +894,7 @@ MIT
 - **Watch mode** — Complexity without clear benefit
 - **Markdown fallback parsing** — Enforce format discipline
 - **"Smart" fixing** — Warden rejects, doesn't repair
+
 ∆∆∆
 
 ∇∇∇ package.json ∇∇∇
@@ -1304,6 +1305,10 @@ fn walk_depth(node: Node, current: usize) -> usize {
                 | "switch_case"
                 | "catch_clause"
                 | "try_statement"
+                | "closure_expression" // Rust closures
+                | "arrow_function" // JS/TS
+                | "function_expression" // JS/TS
+                | "lambda" // Python
         ) {
             max = std::cmp::max(max, walk_depth(child, current + 1));
         } else {
@@ -4600,6 +4605,7 @@ fn print_summary(report: &ScanReport, failures: usize) {
 use crate::roadmap::slugify;
 use crate::roadmap::types::{Roadmap, Task, TaskStatus};
 use colored::Colorize;
+use regex::Regex;
 use std::fs;
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
@@ -4674,12 +4680,53 @@ fn verify_anchor(anchor: &str, root: &Path) -> bool {
     // If function name is specified, verify it exists in the file content
     if let Some(func_name) = fn_part {
         if let Ok(content) = fs::read_to_string(&path) {
-            return content.contains(func_name.trim());
+            return check_definition(&path, &content, func_name.trim());
         }
         return false; // Could not read file
     }
 
     true
+}
+
+fn check_definition(path: &Path, content: &str, name: &str) -> bool {
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+    let pattern = build_definition_pattern(ext, name);
+
+    let Ok(re) = Regex::new(&pattern) else {
+        return content.contains(name);
+    };
+
+    // Iterate matches and check if line is commented
+    for m in re.find_iter(content) {
+        if !is_match_commented(content, m.start(), ext) {
+            return true;
+        }
+    }
+    
+    false
+}
+
+fn build_definition_pattern(ext: &str, name: &str) -> String {
+    match ext {
+        "rs" => format!(r"fn\s+{name}\b"),
+        "py" => format!(r"def\s+{name}\b"),
+        "go" => format!(r"func\s+{name}\b"),
+        "js" | "ts" | "jsx" | "tsx" => {
+            // JS/TS is flexible: function foo, const foo =, foo: function
+            format!(r"(function\s+{name}\b|const\s+{name}\s*=|let\s+{name}\s*=|var\s+{name}\s*=|{name}\s*[:\(])")
+        }
+        _ => name.to_string(), // Fallback (used as regex pattern if simple)
+    }
+}
+
+fn is_match_commented(content: &str, start_idx: usize, ext: &str) -> bool {
+    let line_start = content[..start_idx].rfind('\n').map_or(0, |i| i + 1);
+    let prefix = content[line_start..start_idx].trim();
+    
+    match ext {
+        "py" => prefix.starts_with('#'),
+        _ => prefix.starts_with("//") || prefix.starts_with('*'),
+    }
 }
 
 fn print_missing(task: &Task) {
@@ -4700,7 +4747,7 @@ fn print_summary(missing: usize) {
             "{}",
             format!("❌ Found {missing} tasks without verified tests.").red().bold()
         );
-        println!("   (Tip: Add <!-- test: tests/my_test.rs --> to the task in ROADMAP.md)");
+        println!("   (Tip: Add <!-- test: tests/my_test.rs::function_name --> to the task in ROADMAP.md)");
     }
 }
 
@@ -5901,15 +5948,8 @@ pub fn split_first_word(s: &str) -> (&str, &str) {
 /// # Errors
 /// Returns error if a starting quote is not closed.
 pub fn parse_quoted(s: &str) -> Result<String, String> {
-    let s = s.trim();
-    if let Some(stripped) = s.strip_prefix('"') {
-        stripped
-            .find('"')
-            .map(|end| stripped[..end].to_string())
-            .ok_or_else(|| "Unclosed quote".into())
-    } else {
-        Ok(s.to_string())
-    }
+    let (text, _) = extract_quoted_text(s)?;
+    Ok(text)
 }
 
 /// Parses "text" [AFTER target].
@@ -5930,19 +5970,39 @@ pub fn parse_quoted_with_after(s: &str) -> Result<(String, Option<String>), Stri
 }
 
 /// Extracts quoted text and returns the remainder of the string.
+/// Handles escaped quotes (\") inside the string.
 ///
 /// # Errors
 /// Returns error if quotes are unbalanced.
 pub fn extract_quoted_text(s: &str) -> Result<(String, &str), String> {
     let s = s.trim();
     if let Some(stripped) = s.strip_prefix('"') {
-        let end = stripped.find('"').ok_or("Unclosed quote")?;
-        Ok((stripped[..end].to_string(), stripped[end + 1..].trim()))
-    } else if let Some((text, rest)) = s.split_once(" AFTER ") {
-        Ok((text.trim().to_string(), rest.trim()))
+        let end = find_closing_quote(stripped).ok_or("Unclosed quote")?;
+        // Unescape: \" -> "
+        let content = stripped[..end].replace(r#"\""#, "\"");
+        Ok((content, stripped[end + 1..].trim()))
+    } else if let Some(idx) = s.find(" AFTER ") {
+        // Return text BEFORE ' AFTER ', and keep ' AFTER ' in the rest for parsing
+        Ok((s[..idx].trim().to_string(), s[idx..].trim()))
     } else {
         Ok((s.to_string(), ""))
     }
+}
+
+fn find_closing_quote(s: &str) -> Option<usize> {
+    let mut escaped = false;
+    for (i, c) in s.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if c == '\\' {
+            escaped = true;
+        } else if c == '"' {
+            return Some(i);
+        }
+    }
+    None
 }
 
 #[must_use]

@@ -5,12 +5,12 @@ pub use crate::constants::{
 use crate::error::Result;
 use crate::project::{self, ProjectType};
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleConfig {
     #[serde(default = "default_max_tokens")]
     pub max_file_tokens: usize,
@@ -62,7 +62,7 @@ fn default_ignore_tokens() -> Vec<String> {
 }
 
 /// Helper enum to deserialize commands as either a single string or a list of strings.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CommandEntry {
     Single(String),
@@ -78,7 +78,7 @@ impl CommandEntry {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct WardenToml {
     #[serde(default)]
     pub rules: RuleConfig,
@@ -188,6 +188,29 @@ impl Config {
             .map(|(k, v)| (k, v.into_vec()))
             .collect();
     }
+}
+
+/// Saves the current configuration to `warden.toml`.
+/// # Errors
+/// Returns error if file write fails or serialization fails.
+#[allow(clippy::implicit_hasher)]
+pub fn save_to_file(rules: &RuleConfig, commands: &HashMap<String, Vec<String>>) -> Result<()> {
+    let cmd_entries: HashMap<String, CommandEntry> = commands
+        .iter()
+        .map(|(k, v)| (k.clone(), CommandEntry::List(v.clone())))
+        .collect();
+
+    let toml_struct = WardenToml {
+        rules: rules.clone(),
+        commands: cmd_entries,
+    };
+
+    let content = toml::to_string_pretty(&toml_struct).map_err(|e| {
+        crate::error::WardenError::Other(format!("Failed to serialize config: {e}"))
+    })?;
+
+    fs::write("warden.toml", content)?;
+    Ok(())
 }
 
 fn project_defaults(project: ProjectType) -> HashMap<String, Vec<String>> {

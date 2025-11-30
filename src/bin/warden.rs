@@ -41,6 +41,8 @@ enum Commands {
     Check,
     Fix,
     Apply,
+    /// Open the interactive configuration editor
+    Config,
     #[command(subcommand)]
     Roadmap(RoadmapCommand),
     Pack {
@@ -101,6 +103,7 @@ fn dispatch_subcommand(cmd: &Commands) -> Result<()> {
         Commands::Check => run_command("check"),
         Commands::Fix => run_command("fix"),
         Commands::Apply => handle_apply(),
+        Commands::Config => warden_core::tui::run_config(),
         Commands::Roadmap(cmd) => handle_command(cmd.clone()),
         Commands::Pack {
             stdout,
