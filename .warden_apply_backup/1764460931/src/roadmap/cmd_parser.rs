@@ -1,5 +1,4 @@
 // src/roadmap/cmd_parser.rs
-use crate::roadmap::str_utils;
 use crate::roadmap::types::{Command, CommandBatch, MovePosition};
 
 impl CommandBatch {
@@ -18,11 +17,8 @@ impl CommandBatch {
             match parse_command_line(line) {
                 Ok(cmd) => commands.push(cmd),
                 Err(e) => {
-                    if !line.is_empty() && !str_utils::is_ignorable(line) {
-                        errors.push(format!(
-                            "Line '{}': {e}",
-                            str_utils::truncate(line, 40)
-                        ));
+                    if !line.is_empty() && !is_ignorable(line) {
+                        errors.push(format!("Line '{}': {e}", truncate(line, 40)));
                     }
                 }
             }
@@ -151,11 +147,11 @@ fn req_path(args: &str) -> Result<String, String> {
 }
 
 fn parse_add(args: &str) -> Result<Command, String> {
-    let (parent, rest) = str_utils::split_first_word(args);
+    let (parent, rest) = split_first_word(args);
     if parent.is_empty() {
         return Err("ADD needs parent".into());
     }
-    let (text, after) = str_utils::parse_quoted_with_after(rest)?;
+    let (text, after) = parse_quoted_with_after(rest)?;
     Ok(Command::Add {
         parent: parent.into(),
         text,
@@ -164,24 +160,24 @@ fn parse_add(args: &str) -> Result<Command, String> {
 }
 
 fn parse_update(args: &str) -> Result<Command, String> {
-    let (path, rest) = str_utils::split_first_word(args);
+    let (path, rest) = split_first_word(args);
     if path.is_empty() {
         return Err("UPDATE needs path".into());
     }
     Ok(Command::Update {
         path: path.into(),
-        text: str_utils::parse_quoted(rest)?,
+        text: parse_quoted(rest)?,
     })
 }
 
 fn parse_note(args: &str) -> Result<Command, String> {
-    let (path, rest) = str_utils::split_first_word(args);
+    let (path, rest) = split_first_word(args);
     if path.is_empty() {
         return Err("NOTE needs path".into());
     }
     Ok(Command::Note {
         path: path.into(),
-        note: str_utils::parse_quoted(rest)?,
+        note: parse_quoted(rest)?,
     })
 }
 
@@ -211,4 +207,68 @@ fn parse_section(args: &str) -> Result<Command, String> {
         id: id.into(),
         content: String::new(),
     })
+}
+
+fn split_first_word(s: &str) -> (&str, &str) {
+    s.trim()
+        .split_once(char::is_whitespace)
+        .map_or((s.trim(), ""), |(h, t)| (h, t.trim()))
+}
+
+fn parse_quoted(s: &str) -> Result<String, String> {
+    let s = s.trim();
+    if let Some(stripped) = s.strip_prefix('"') {
+        stripped
+            .find('"')
+            .map(|end| stripped[..end].to_string())
+            .ok_or_else(|| "Unclosed quote".into())
+    } else {
+        Ok(s.to_string())
+    }
+}
+
+fn parse_quoted_with_after(s: &str) -> Result<(String, Option<String>), String> {
+    let (text, rest) = extract_quoted_text(s)?;
+
+    let after = if let Some(stripped) = rest.strip_prefix("AFTER ") {
+        Some(stripped.trim().to_string())
+    } else {
+        rest.strip_prefix("after ")
+            .map(|stripped| stripped.trim().to_string())
+    };
+
+    Ok((text, after))
+}
+
+fn extract_quoted_text(s: &str) -> Result<(String, &str), String> {
+    let s = s.trim();
+    if let Some(stripped) = s.strip_prefix('"') {
+        let end = stripped.find('"').ok_or("Unclosed quote")?;
+        Ok((stripped[..end].to_string(), stripped[end + 1..].trim()))
+    } else if let Some((text, rest)) = s.split_once(" AFTER ") {
+        Ok((text.trim().to_string(), rest.trim()))
+    } else {
+        Ok((s.to_string(), ""))
+    }
+}
+
+fn is_ignorable(line: &str) -> bool {
+    let u = line.to_uppercase();
+    u.starts_with("===")
+        || u.starts_with("---")
+        || u.starts_with("```")
+        || u.starts_with("∇∇∇")
+        || u.starts_with("∆∆∆")
+        || u == "ROADMAP"
+        || u == "END"
+}
+
+// Unicode-safe truncation to prevent panics on multi-byte chars
+fn truncate(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{truncated}...")
+    }
 }

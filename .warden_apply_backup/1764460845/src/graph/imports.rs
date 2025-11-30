@@ -24,8 +24,8 @@ impl ImportExtractor {
             python: compile_query(
                 tree_sitter_python::language(),
                 r"
-                (import_statement name: (dotted_name) @import)
-                (aliased_import name: (dotted_name) @import)
+                (import_statement (dotted_name) @import)
+                (import_statement (aliased_import name: (dotted_name) @import))
                 (import_from_statement module_name: (dotted_name) @import)
                 ",
             ),

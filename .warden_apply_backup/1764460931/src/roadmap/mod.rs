@@ -4,7 +4,6 @@ pub mod cmd_runner;
 pub mod display;
 pub mod parser;
 pub mod prompt;
-pub mod str_utils;
 pub mod types;
 
 // Re-export CommandBatch from types

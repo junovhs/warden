@@ -1,0 +1,65 @@
+// src/roadmap/str_utils.rs
+
+pub fn split_first_word(s: &str) -> (&str, &str) {
+    s.trim()
+        .split_once(char::is_whitespace)
+        .map_or((s.trim(), ""), |(h, t)| (h, t.trim()))
+}
+
+pub fn parse_quoted(s: &str) -> Result<String, String> {
+    let s = s.trim();
+    if let Some(stripped) = s.strip_prefix('"') {
+        stripped
+            .find('"')
+            .map(|end| stripped[..end].to_string())
+            .ok_or_else(|| "Unclosed quote".into())
+    } else {
+        Ok(s.to_string())
+    }
+}
+
+pub fn parse_quoted_with_after(s: &str) -> Result<(String, Option<String>), String> {
+    let (text, rest) = extract_quoted_text(s)?;
+
+    let after = if let Some(stripped) = rest.strip_prefix("AFTER ") {
+        Some(stripped.trim().to_string())
+    } else {
+        rest.strip_prefix("after ")
+            .map(|stripped| stripped.trim().to_string())
+    };
+
+    Ok((text, after))
+}
+
+pub fn extract_quoted_text(s: &str) -> Result<(String, &str), String> {
+    let s = s.trim();
+    if let Some(stripped) = s.strip_prefix('"') {
+        let end = stripped.find('"').ok_or("Unclosed quote")?;
+        Ok((stripped[..end].to_string(), stripped[end + 1..].trim()))
+    } else if let Some((text, rest)) = s.split_once(" AFTER ") {
+        Ok((text.trim().to_string(), rest.trim()))
+    } else {
+        Ok((s.to_string(), ""))
+    }
+}
+
+pub fn is_ignorable(line: &str) -> bool {
+    let u = line.to_uppercase();
+    u.starts_with("===")
+        || u.starts_with("---")
+        || u.starts_with("```")
+        || u.starts_with("∇∇∇")
+        || u.starts_with("∆∆∆")
+        || u == "ROADMAP"
+        || u == "END"
+}
+
+// Unicode-safe truncation to prevent panics on multi-byte chars
+pub fn truncate(s: &str, max_chars: usize) -> String {
+    if s.chars().count() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars).collect();
+        format!("{truncated}...")
+    }
+}

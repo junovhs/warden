@@ -105,7 +105,8 @@ Strip function bodies, keep signatures:
 
 ### Dependency Graphing
 
-- [ ] Parse `mod`, `use`, `import`, `require` statements
+- [x] Parse `mod`, `use`, `import`, `require` statements
+  *Implemented in src/graph/imports.rs and src/graph/resolver.rs*
 - [ ] Build local dependency graph
 - [ ] Auto-include dependencies in context
 
