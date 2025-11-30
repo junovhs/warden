@@ -2,6 +2,7 @@
 use crate::roadmap::slugify;
 use crate::roadmap::types::{Roadmap, Task, TaskStatus};
 use colored::Colorize;
+use std::fs;
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
 
@@ -46,12 +47,7 @@ pub fn run(roadmap: &Roadmap, root: &Path, _opts: AuditOptions) {
 fn verify_task(task: &Task, root: &Path, scanned_files: &[String]) -> bool {
     // 1. Priority: Explicit Anchors
     if !task.tests.is_empty() {
-        return task.tests.iter().all(|t| {
-            // Check if the explicitly linked file exists relative to root
-            // We strip "test:" prefix handling in parser, so here it's just the path
-            let path = root.join(t.trim());
-            path.exists() && path.is_file()
-        });
+        return task.tests.iter().all(|t| verify_anchor(t, root));
     }
 
     // 2. Fallback: Slug Heuristic
@@ -61,6 +57,31 @@ fn verify_task(task: &Task, root: &Path, scanned_files: &[String]) -> bool {
     scanned_files
         .iter()
         .any(|f| f.contains(&slug) || f.contains(&id_slug))
+}
+
+fn verify_anchor(anchor: &str, root: &Path) -> bool {
+    // Support "path/to/file.rs::function_name" syntax
+    let (file_part, fn_part) = if let Some((f, n)) = anchor.split_once("::") {
+        (f, Some(n))
+    } else {
+        (anchor, None)
+    };
+
+    let path = root.join(file_part.trim());
+    
+    if !path.exists() || !path.is_file() {
+        return false;
+    }
+
+    // If function name is specified, verify it exists in the file content
+    if let Some(func_name) = fn_part {
+        if let Ok(content) = fs::read_to_string(&path) {
+            return content.contains(func_name.trim());
+        }
+        return false; // Could not read file
+    }
+
+    true
 }
 
 fn print_missing(task: &Task) {
