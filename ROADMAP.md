@@ -54,18 +54,18 @@
 - [x] **Token exemption patterns** <!-- test: tests/unit_config.rs::test_ignore_tokens_on -->
 
 ### Law of Complexity — Cyclomatic
-- [x] **Rust complexity query (if/match/for/while/&&/||) <!-- test: tests/integration_core.rs::test_complexity_boundary_check -->**
-- [x] **Complexity violation detection <!-- test: tests/integration_core.rs::test_complexity_construct_match -->**
+- [x] **Rust complexity query (if/match/for/while/&&/||)** <!-- test: tests/integration_core.rs::test_complexity_boundary_check -->
+- [x] **Complexity violation detection** <!-- test: tests/integration_core.rs::test_complexity_construct_match -->
 - [x] **JS/TS complexity query** <!-- test: tests/unit_analysis.rs::test_js_complexity -->
 - [x] **Python complexity query** <!-- test: tests/unit_analysis.rs::test_python_complexity -->
 
 ### Law of Complexity — Nesting Depth
-- [x] **Depth calculation (block/body traversal) <!-- test: tests/integration_core.rs::test_nesting_boundary -->**
-- [x] **Deep nesting violation <!-- test: tests/integration_core.rs::test_nesting_boundary -->**
+- [x] **Depth calculation (block/body traversal)** <!-- test: tests/integration_core.rs::test_nesting_boundary -->
+- [x] **Deep nesting violation** <!-- test: tests/integration_core.rs::test_nesting_boundary -->
 
 ### Law of Complexity — Arity
-- [x] **Parameter counting <!-- test: tests/integration_core.rs::test_arity_boundary -->**
-- [x] **High arity violation <!-- test: tests/integration_core.rs::test_arity_boundary -->**
+- [x] **Parameter counting** <!-- test: tests/integration_core.rs::test_arity_boundary -->
+- [x] **High arity violation** <!-- test: tests/integration_core.rs::test_arity_boundary -->
 
 ### Law of Complexity — Naming
 - [x] **Snake_case word counting** <!-- test: tests/unit_analysis.rs::test_snake_case_words -->
@@ -75,7 +75,7 @@
 ### Law of Paranoia (Rust)
 - [x] **Banned call query (.unwrap/.expect)** <!-- test: tests/integration_core.rs::test_paranoia_unwrap_fails -->
 - [x] **.expect() detection** <!-- test: tests/integration_core.rs::test_paranoia_expect_fails -->
-- [x] **Safe alternatives allowed (.unwrap_or) <!-- test: tests/integration_core.rs::test_paranoia_safe_alternatives_pass -->**
+- [x] **Safe alternatives allowed (.unwrap_or)** <!-- test: tests/integration_core.rs::test_paranoia_safe_alternatives_pass -->
 
 ### File Ignores
 - [x] **warden:ignore (C-style //)** <!-- test: tests/integration_core.rs::test_warden_ignore_skips_file -->
@@ -190,7 +190,7 @@
 - [x] **Law of Complexity in prompt** <!-- test: tests/integration_pack.rs::test_prompt_includes_limits -->
 - [x] **Nabla format instructions** <!-- test: tests/integration_pack.rs::test_prompt_includes_nabla_instructions -->
 - [x] **Footer reminder** <!-- test: tests/integration_pack.rs::test_reminder_is_concise -->
-- [x] **Violation injection <!-- test: tests/unit_pack_violations.rs::test_violations_injected -->**
+- [x] **Violation injection** <!-- test: tests/unit_pack_violations.rs::test_violations_injected -->
 
 ### Skeleton System
 - [x] **Rust body → { ... }** <!-- test: tests/integration_skeleton.rs::test_clean_rust_basic -->
@@ -260,12 +260,14 @@
 ---
 
 ## v0.7.0 — Test Traceability 🔄 CURRENT
-- [ ] **— Test Traceability 🔄 CURRENT" "**Empty task ID filtering** <!-- test: tests/unit_parser.rs::test_empty_id_skipped -->"**
-- [ ] **— Test Traceability 🔄 CURRENT" "**Task ID collision detection** <!-- test: tests/unit_parser.rs::test_id_collision_resolved -->"**
-- [ ] **— Test Traceability 🔄 CURRENT" "**Anchor-based task matching** <!-- test: tests/unit_parser.rs::test_anchor_id_extraction -->"**
-- [ ] **— Test Traceability 🔄 CURRENT" "**Smart UPDATE inference (vs DELETE+ADD)** <!-- test: tests/unit_diff.rs::test_text_change_is_update -->"**
 
 *Enforce the contract: every feature has verified tests.*
+
+### Parser Hardening
+- [ ] **Empty task ID filtering** <!-- test: tests/unit_parser.rs::test_empty_id_skipped -->
+- [ ] **Task ID collision detection** <!-- test: tests/unit_parser.rs::test_id_collision_resolved -->
+- [ ] **Anchor-based task matching** <!-- test: tests/unit_parser.rs::test_anchor_id_extraction -->
+- [ ] **Smart UPDATE inference (vs DELETE+ADD)** <!-- test: tests/unit_diff.rs::test_text_change_is_update -->
 
 ### Audit System
 - [x] **Scan completed tasks** <!-- test: tests/integration_audit.rs::test_scans_completed_only -->
@@ -286,23 +288,153 @@
 
 ---
 
-## v0.8.0 — Missing Features
+## v0.8.0 — Dependency Graph
 
-*Features claimed but not implemented.*
+*Build the import graph for smart context generation.*
+
+### Import Extraction — Rust
+- [ ] **Rust use declaration extraction** <!-- test: tests/unit_graph.rs::test_rust_use_extraction -->
+- [ ] **Rust mod declaration extraction** <!-- test: tests/unit_graph.rs::test_rust_mod_extraction -->
+- [ ] **Rust re-export handling (pub use)** <!-- test: tests/unit_graph.rs::test_rust_reexport -->
+- [ ] **Rust crate:: path resolution** <!-- test: tests/unit_graph.rs::test_rust_crate_path -->
+- [ ] **Rust self:: path resolution** <!-- test: tests/unit_graph.rs::test_rust_self_path -->
+- [ ] **Rust super:: path resolution** <!-- test: tests/unit_graph.rs::test_rust_super_path -->
+- [ ] **Rust mod.rs index resolution** <!-- test: tests/unit_graph.rs::test_rust_mod_index -->
+
+### Import Extraction — Python
+- [ ] **Python import statement extraction** <!-- test: tests/unit_graph.rs::test_python_import -->
+- [ ] **Python from...import extraction** <!-- test: tests/unit_graph.rs::test_python_from_import -->
+- [ ] **Python relative import handling (.module)** <!-- test: tests/unit_graph.rs::test_python_relative -->
+- [ ] **Python __init__.py resolution** <!-- test: tests/unit_graph.rs::test_python_init -->
+
+### Import Extraction — TypeScript/JavaScript
+- [ ] **TypeScript import extraction** <!-- test: tests/unit_graph.rs::test_ts_import -->
+- [ ] **TypeScript require() extraction** <!-- test: tests/unit_graph.rs::test_ts_require -->
+- [ ] **TypeScript re-export extraction** <!-- test: tests/unit_graph.rs::test_ts_reexport -->
+- [ ] **JavaScript ESM/CJS detection** <!-- test: tests/unit_graph.rs::test_js_module_type -->
+- [ ] **TypeScript index.ts resolution** <!-- test: tests/unit_graph.rs::test_ts_index -->
+- [ ] **TypeScript path alias resolution (tsconfig)** <!-- test: tests/unit_graph.rs::test_ts_path_alias -->
+
+### Import Resolution — General
+- [ ] **Relative path resolution (./)** <!-- test: tests/unit_resolver.rs::test_relative_path -->
+- [ ] **Parent path resolution (../)** <!-- test: tests/unit_resolver.rs::test_parent_path -->
+- [ ] **External dependency detection (skip)** <!-- test: tests/unit_resolver.rs::test_external_skipped -->
+
+### Graph Construction
+- [ ] **Graph node creation (file → vertex)** <!-- test: tests/unit_graph_build.rs::test_node_creation -->
+- [ ] **Graph edge creation (import → directed edge)** <!-- test: tests/unit_graph_build.rs::test_edge_creation -->
+- [ ] **Reverse index construction (importers)** <!-- test: tests/unit_graph_build.rs::test_reverse_index -->
+- [ ] **Cycle detection (tarjan or DFS)** <!-- test: tests/unit_graph_build.rs::test_cycle_detection -->
+- [ ] **Hub file detection (high in-degree)** <!-- test: tests/unit_graph_build.rs::test_hub_detection -->
+- [ ] **Leaf file detection (zero out-degree)** <!-- test: tests/unit_graph_build.rs::test_leaf_detection -->
+- [ ] **Orphan file detection (zero in-degree)** <!-- test: tests/unit_graph_build.rs::test_orphan_detection -->
+- [ ] **Graph serialization (debug output)** <!-- test: tests/unit_graph_build.rs::test_serialization -->
+
+### Graph Traversal
+- [ ] **BFS traversal from entry point** <!-- test: tests/unit_graph_walk.rs::test_bfs -->
+- [ ] **DFS traversal from entry point** <!-- test: tests/unit_graph_walk.rs::test_dfs -->
+- [ ] **Depth-limited traversal (--depth N)** <!-- test: tests/unit_graph_walk.rs::test_depth_limit -->
+- [ ] **Forward walk (dependencies)** <!-- test: tests/unit_graph_walk.rs::test_forward -->
+- [ ] **Reverse walk (dependents)** <!-- test: tests/unit_graph_walk.rs::test_reverse -->
+- [ ] **Bidirectional walk (both)** <!-- test: tests/unit_graph_walk.rs::test_bidirectional -->
+- [ ] **Subgraph extraction** <!-- test: tests/unit_graph_walk.rs::test_subgraph -->
+- [ ] **Topological sort for output ordering** <!-- test: tests/unit_graph_walk.rs::test_topo_sort -->
+
+### Cluster Detection
+- [ ] **Directory-based cluster inference** <!-- test: tests/unit_cluster.rs::test_dir_cluster -->
+- [ ] **Strongly connected component detection** <!-- test: tests/unit_cluster.rs::test_scc -->
+- [ ] **Cluster boundary identification** <!-- test: tests/unit_cluster.rs::test_boundary -->
+- [ ] **Cross-cluster edge detection** <!-- test: tests/unit_cluster.rs::test_cross_cluster -->
+- [ ] **Cluster size metrics (files, tokens)** <!-- test: tests/unit_cluster.rs::test_metrics -->
+- [ ] **warden.toml [clusters] definition** <!-- test: tests/unit_cluster.rs::test_toml_clusters -->
+- [ ] **// warden:cluster(name) annotation** <!-- test: tests/unit_cluster.rs::test_annotation -->
+
+---
+
+## v0.9.0 — Smart Context
+
+*Give AI exactly what it needs, nothing more.*
+
+### Warden Map Command
+- [ ] **warden map basic output** <!-- test: tests/cli_map.rs::test_map_basic -->
+- [ ] **Directory tree with file counts** <!-- test: tests/cli_map.rs::test_map_tree -->
+- [ ] **Cluster summary display** <!-- test: tests/cli_map.rs::test_map_clusters -->
+- [ ] **--deps flag (show dependency arrows)** <!-- test: tests/cli_map.rs::test_map_deps -->
+- [ ] **--stats flag (token counts per cluster)** <!-- test: tests/cli_map.rs::test_map_stats -->
+- [ ] **--json flag (machine-readable map)** <!-- test: tests/cli_map.rs::test_map_json -->
+- [ ] **Module description extraction (//! or docstring)** <!-- test: tests/cli_map.rs::test_map_docs -->
+- [ ] **Entry point detection (main.rs, lib.rs, index.ts)** <!-- test: tests/cli_map.rs::test_entry_point -->
+
+### Error-Driven Packing
+- [ ] **warden pack --from-errors flag** <!-- test: tests/integration_error_pack.rs::test_from_errors_flag -->
+- [ ] **Cargo/rustc error parsing** <!-- test: tests/unit_error_parse.rs::test_cargo_errors -->
+- [ ] **Clippy warning parsing** <!-- test: tests/unit_error_parse.rs::test_clippy_warnings -->
+- [ ] **TypeScript/tsc error parsing** <!-- test: tests/unit_error_parse.rs::test_tsc_errors -->
+- [ ] **Python traceback parsing** <!-- test: tests/unit_error_parse.rs::test_python_traceback -->
+- [ ] **ESLint output parsing** <!-- test: tests/unit_error_parse.rs::test_eslint_output -->
+- [ ] **File path extraction from errors** <!-- test: tests/unit_error_parse.rs::test_path_extraction -->
+- [ ] **Line number extraction from errors** <!-- test: tests/unit_error_parse.rs::test_line_extraction -->
+- [ ] **Unique file deduplication** <!-- test: tests/unit_error_parse.rs::test_dedup -->
+- [ ] **Auto-include test files for src errors** <!-- test: tests/integration_error_pack.rs::test_auto_tests -->
+- [ ] **Piped input support (cargo clippy 2>&1 |)** <!-- test: tests/integration_error_pack.rs::test_piped -->
+- [ ] **--from-clipboard-errors flag** <!-- test: tests/integration_error_pack.rs::test_clipboard_errors -->
+
+### Cluster Packing
+- [ ] **warden pack --cluster NAME flag** <!-- test: tests/integration_cluster_pack.rs::test_cluster_flag -->
+- [ ] **Cluster resolution by name** <!-- test: tests/integration_cluster_pack.rs::test_by_name -->
+- [ ] **Cluster resolution by directory path** <!-- test: tests/integration_cluster_pack.rs::test_by_dir -->
+- [ ] **--with-tests flag (include test files)** <!-- test: tests/integration_cluster_pack.rs::test_with_tests -->
+- [ ] **--with-boundary flag (skeleton boundary files)** <!-- test: tests/integration_cluster_pack.rs::test_with_boundary -->
+- [ ] **--no-boundary flag (exclude boundary files)** <!-- test: tests/integration_cluster_pack.rs::test_no_boundary -->
+- [ ] **Multiple cluster inclusion (--cluster a --cluster b)** <!-- test: tests/integration_cluster_pack.rs::test_multi_cluster -->
+
+### Trace Packing
+- [ ] **warden pack --trace PATH flag** <!-- test: tests/integration_trace_pack.rs::test_trace_flag -->
+- [ ] **--depth N limit for trace** <!-- test: tests/integration_trace_pack.rs::test_depth_limit -->
+- [ ] **--forward flag (dependencies only)** <!-- test: tests/integration_trace_pack.rs::test_forward -->
+- [ ] **--reverse flag (dependents only)** <!-- test: tests/integration_trace_pack.rs::test_reverse -->
+- [ ] **Default: bidirectional trace** <!-- test: tests/integration_trace_pack.rs::test_bidirectional -->
+- [ ] **Trace + skeleton hybrid output** <!-- test: tests/integration_trace_pack.rs::test_hybrid -->
+- [ ] **Multiple trace roots (--trace a --trace b)** <!-- test: tests/integration_trace_pack.rs::test_multi_trace -->
+
+### Context Ordering
+- [ ] **Dependency-first ordering (topological)** <!-- test: tests/unit_ordering.rs::test_topo_order -->
+- [ ] **Leaf files appear first** <!-- test: tests/unit_ordering.rs::test_leaves_first -->
+- [ ] **Target/focus file appears last** <!-- test: tests/unit_ordering.rs::test_target_last -->
+- [ ] **Circular dependency handling (break arbitrarily)** <!-- test: tests/unit_ordering.rs::test_cycle_break -->
+- [ ] **Shared dependency hoisting** <!-- test: tests/unit_ordering.rs::test_hoisting -->
+
+### AI Context Protocol
+- [ ] **CONTEXT_REQUEST format specification** [no-test] *(documentation)*
+- [ ] **AI can emit cluster requests** <!-- test: tests/integration_fulfill.rs::test_cluster_request -->
+- [ ] **AI can emit trace requests** <!-- test: tests/integration_fulfill.rs::test_trace_request -->
+- [ ] **AI can emit file requests** <!-- test: tests/integration_fulfill.rs::test_file_request -->
+- [ ] **warden fulfill command (parse AI request)** <!-- test: tests/integration_fulfill.rs::test_fulfill_command -->
+- [ ] **Request validation (cluster/file exists)** <!-- test: tests/integration_fulfill.rs::test_validation -->
+
+---
+
+## v0.10.0 — Validation Hardening
+
+*Catch more AI failure modes.*
 
 ### Markdown Rejection
 - [ ] **Block triple backticks (```)** <!-- test: tests/integration_apply.rs::test_rejects_markdown_fences -->
 - [ ] **Block tilde fences (~~~)** <!-- test: tests/integration_apply.rs::test_rejects_tilde_fences -->
+- [ ] **Markdown fence rejection rationale** [no-test] *(documentation: AI escape issues)*
 
 ### Brace Balancing
 - [ ] **Detect unbalanced {** <!-- test: tests/integration_apply.rs::test_detects_unbalanced_open_brace -->
 - [ ] **Detect unbalanced }** <!-- test: tests/integration_apply.rs::test_detects_unbalanced_close_brace -->
 - [ ] **Detect unbalanced [** <!-- test: tests/integration_apply.rs::test_detects_unbalanced_bracket -->
 - [ ] **Detect unbalanced (** <!-- test: tests/integration_apply.rs::test_detects_unbalanced_paren -->
+- [ ] **Brace balance algorithm selection** [no-test] *(design decision)*
+- [ ] **String literal exclusion from brace count** <!-- test: tests/unit_brace.rs::test_string_exclusion -->
+- [ ] **Comment exclusion from brace count** <!-- test: tests/unit_brace.rs::test_comment_exclusion -->
 
 ---
 
-## v0.9.0 — CI/CD Integration
+## v0.11.0 — CI/CD Integration
 
 *Machine-readable output and automation.*
 
@@ -319,6 +451,28 @@
 - [ ] **Exit 1 on violations** <!-- test: tests/cli_exit.rs::test_exit_1_violations -->
 - [ ] **Exit 2 on error** <!-- test: tests/cli_exit.rs::test_exit_2_error -->
 
+### CI Templates
+- [ ] **GitHub Actions workflow template** <!-- test: tests/cli_ci.rs::test_github_template -->
+- [ ] **GitLab CI template** <!-- test: tests/cli_ci.rs::test_gitlab_template -->
+- [ ] **warden init --ci flag (generate workflow)** <!-- test: tests/cli_ci.rs::test_init_ci -->
+- [ ] **Fail-fast vs report-all modes** <!-- test: tests/cli_ci.rs::test_fail_modes -->
+- [ ] **Annotation output for GitHub PR comments** <!-- test: tests/cli_ci.rs::test_annotations -->
+
+---
+
+## v0.12.0 — Graph Visualization
+
+*See your codebase structure.*
+
+### Visualization Formats
+- [ ] **warden graph command** <!-- test: tests/cli_graph.rs::test_graph_command -->
+- [ ] **DOT format export (Graphviz)** <!-- test: tests/cli_graph.rs::test_dot_export -->
+- [ ] **Mermaid format export** <!-- test: tests/cli_graph.rs::test_mermaid_export -->
+- [ ] **--cluster-only flag (show clusters, not files)** <!-- test: tests/cli_graph.rs::test_cluster_only -->
+- [ ] **--highlight PATH flag (color specific subgraph)** <!-- test: tests/cli_graph.rs::test_highlight -->
+- [ ] **Interactive HTML export (D3.js)** <!-- test: tests/cli_graph.rs::test_html_export -->
+- [ ] **Terminal ASCII graph (small projects)** <!-- test: tests/cli_graph.rs::test_ascii_graph -->
+
 ---
 
 ## v1.0.0 — Release
@@ -334,6 +488,15 @@
 - [ ] **Documentation site** [no-test]
 - [ ] **Logo and branding** [no-test]
 - [ ] **README finalized** [no-test]
+- [ ] **CHANGELOG.md generation** [no-test]
+- [ ] **CONTRIBUTING.md guide** [no-test]
+- [ ] **Security policy (SECURITY.md)** [no-test]
+
+### Polish
+- [ ] **License audit (dependency licenses)** <!-- test: tests/release.rs::test_license_audit -->
+- [ ] **Binary size optimization** [no-test]
+- [ ] **Startup time benchmarking** [no-test]
+- [ ] **Cross-compilation CI (linux/mac/windows)** [no-test]
 
 ---
 
@@ -345,6 +508,9 @@
 4. **Explicit > Magic** — Fail loudly on format violations
 5. **Containment over craftsmanship** — Constraints are safety, not style
 6. **Self-hosting** — Warden passes its own rules
+7. **Context is king** — Give AI exactly what it needs, nothing more
+8. **Graph over glob** — Understand structure, don't just pattern match
+9. **Errors are context** — Parse failures to understand scope
 
 ---
 
@@ -354,3 +520,6 @@
 - **Watch mode** — Complexity without clear benefit
 - **Markdown fallback parsing** — Enforce format discipline
 - **"Smart" fixing** — Warden rejects, doesn't repair
+- **Full LSP implementation** — Use tree-sitter queries, not language servers
+- **Multi-repo support** — One project at a time
+- **Incremental graph updates** — Rebuild on each run (fast enough)
