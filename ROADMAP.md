@@ -286,6 +286,26 @@
 - [ ] **Feature ID → test function mapping**
 - [ ] **Audit validates naming convention**
 
+### Roadmap Hardening
+- [ ] **SECTION command (create version headers)** <!-- test: tests/unit_roadmap_cmd.rs::test_section_command -->
+- [ ] **SUBSECTION command (create ### headers)** <!-- test: tests/unit_roadmap_cmd.rs::test_subsection_command -->
+- [ ] **CHAIN command (sequential adds)** <!-- test: tests/unit_roadmap_cmd.rs::test_chain_command -->
+- [ ] **AFTER PREVIOUS keyword** <!-- test: tests/unit_roadmap_cmd.rs::test_after_previous -->
+- [ ] **AFTER TEXT "exact" match** <!-- test: tests/unit_roadmap_cmd.rs::test_after_text_exact -->
+- [ ] **AFTER LINE N match** <!-- test: tests/unit_roadmap_cmd.rs::test_after_line_number -->
+- [ ] **IN "section/subsection" location** <!-- test: tests/unit_roadmap_cmd.rs::test_in_location -->
+- [ ] **Slug echo on ADD (show generated slug)** <!-- test: tests/unit_roadmap_cmd.rs::test_slug_echo -->
+- [ ] **Pre-validation: all AFTER targets exist** <!-- test: tests/unit_roadmap_validate.rs::test_after_target_exists -->
+- [ ] **Pre-validation: no slug collisions** <!-- test: tests/unit_roadmap_validate.rs::test_slug_collision -->
+- [ ] **Pre-validation: no circular AFTER chains** <!-- test: tests/unit_roadmap_validate.rs::test_circular_detection -->
+- [ ] **Batch dependency resolution (topological sort)** <!-- test: tests/unit_roadmap_validate.rs::test_batch_topo_sort -->
+- [ ] **Fuzzy match suggestions on AFTER miss** <!-- test: tests/unit_roadmap_validate.rs::test_fuzzy_suggest -->
+- [ ] **Dry-run mode (--dry-run flag)** <!-- test: tests/cli_roadmap.rs::test_apply_dry_run -->
+- [ ] **Atomic file write (temp → rename)** <!-- test: tests/unit_roadmap_write.rs::test_atomic_write -->
+- [ ] **Backup creation (.md.bak)** <!-- test: tests/unit_roadmap_write.rs::test_backup_created -->
+- [ ] **All-or-nothing execution (rollback on error)** <!-- test: tests/integration_roadmap.rs::test_rollback_on_error -->
+- [ ] **Verbose plan output** <!-- test: tests/cli_roadmap.rs::test_verbose_plan -->
+
 ---
 
 ## v0.8.0 — Dependency Graph
