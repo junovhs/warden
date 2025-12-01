@@ -6,12 +6,14 @@ use std::collections::HashMap;
 #[must_use]
 pub fn diff(current: &Roadmap, incoming: &Roadmap) -> Vec<Command> {
     let mut commands = Vec::new();
-    
+
     // 1. Structural Scan: Add missing sections
-    let curr_sections: HashMap<String, String> = current.sections.iter()
+    let curr_sections: HashMap<String, String> = current
+        .sections
+        .iter()
         .map(|s| (s.id.clone(), s.heading.clone()))
         .collect();
-        
+
     for section in &incoming.sections {
         if !curr_sections.contains_key(&section.id) {
             commands.push(Command::AddSection {
@@ -47,7 +49,7 @@ pub fn diff(current: &Roadmap, incoming: &Roadmap) -> Vec<Command> {
             commands.push(Command::Add {
                 parent: inc_parent_title.clone(),
                 text: inc_task.text.clone(),
-                after: None, 
+                after: None,
             });
         }
     }
@@ -81,8 +83,12 @@ fn detect_move(ctx: &TaskComparisonContext, cmds: &mut Vec<Command>) {
 fn detect_status_change(ctx: &TaskComparisonContext, cmds: &mut Vec<Command>) {
     if ctx.curr.status != ctx.inc.status {
         match ctx.inc.status {
-            crate::roadmap::TaskStatus::Complete => cmds.push(Command::Check { path: ctx.id.to_string() }),
-            crate::roadmap::TaskStatus::Pending => cmds.push(Command::Uncheck { path: ctx.id.to_string() }),
+            crate::roadmap::TaskStatus::Complete => cmds.push(Command::Check {
+                path: ctx.id.to_string(),
+            }),
+            crate::roadmap::TaskStatus::Pending => cmds.push(Command::Uncheck {
+                path: ctx.id.to_string(),
+            }),
         }
     }
 }
@@ -161,7 +167,7 @@ mod tests {
     #[test]
     fn test_diff_move_section() {
         let t1 = make_task("t1", TaskStatus::Pending);
-        
+
         let sec_a = make_section("Section A", vec![t1.clone()]);
         let sec_b = make_section("Section B", vec![]);
         let curr = make_roadmap(vec![sec_a, sec_b]);
@@ -177,7 +183,7 @@ mod tests {
             Command::Move { path, position } => {
                 assert_eq!(path, "t1");
                 assert_eq!(*position, MovePosition::EndOfSection("Section B".into()));
-            },
+            }
             _ => panic!("Expected MOVE"),
         }
     }
@@ -186,7 +192,7 @@ mod tests {
     fn test_diff_add_section() {
         let curr = make_roadmap(vec![]);
         let inc = make_roadmap(vec![make_section("New Era", vec![])]);
-        
+
         let cmds = diff(&curr, &inc);
         assert_eq!(cmds.len(), 1);
         match &cmds[0] {
@@ -204,14 +210,17 @@ mod tests {
         let inc = make_roadmap(vec![]); // Empty
 
         let cmds = diff(&curr, &inc);
-        
+
         // Should delete both tasks
         assert_eq!(cmds.len(), 2);
-        
-        let deleted: Vec<String> = cmds.iter().map(|c| match c {
-            Command::Delete { path } => path.clone(),
-            _ => panic!("Wrong command"),
-        }).collect();
+
+        let deleted: Vec<String> = cmds
+            .iter()
+            .map(|c| match c {
+                Command::Delete { path } => path.clone(),
+                _ => panic!("Wrong command"),
+            })
+            .collect();
 
         assert!(deleted.contains(&"t1".to_string()));
         assert!(deleted.contains(&"t2".to_string()));
