@@ -16,6 +16,16 @@
 
 ---
 
+## How to Read This File
+
+- **Users:** Skim version headlines and the Principles section.
+- **Contributors:** Look at the `🔄 CURRENT` version's unchecked tasks.
+- **AI Assistants:** Never rewrite this file directly. Emit `===ROADMAP===` command blocks only.
+
+**Current Status (v0.7.x):** Warden fully supports the Three Laws, Nabla protocol, and basic roadmap management. Smart Context (dependency graphs, cluster packing) is planned for v0.8-0.9.
+
+---
+
 ## v0.1.0 — Foundation ✅
 
 *Core infrastructure and project structure.*
@@ -36,8 +46,6 @@
 ### Configuration
 - [x] **TOML config loading** <!-- test: tests/unit_config.rs::test_load_toml -->
 - [x] **Default rule values** <!-- test: tests/unit_config.rs::test_defaults -->
-- [x] **<!-- test: tests/unit_roadmap.rs::test_update_command -->**
-  *<!-- test: tests/unit_roadmap.rs::test_note_command -->*
 - [x] **Command list parsing** <!-- test: tests/unit_config.rs::test_command_list -->
 - [x] **.wardenignore loading** <!-- test: tests/unit_config.rs::test_wardenignore -->
 - [x] **Auto-config generation** [no-test] *(side effect on first run)*
@@ -233,7 +241,7 @@
 ### Command Parsing
 - [x] **===ROADMAP=== block detection** <!-- test: tests/integration_roadmap.rs::test_parse_extracts_from_larger_text -->
 - [x] **CHECK command** <!-- test: tests/integration_roadmap.rs::test_parse_check_command -->
-- [ ] **UNCHECK command** <!-- test: tests/integration_roadmap.rs::test_parse_multiple_commands -->
+- [ ] **UNCHECK command** <!-- test: tests/integration_roadmap.rs::test_parse_uncheck_command -->
 - [x] **ADD command** <!-- test: tests/integration_roadmap.rs::test_parse_multiple_commands -->
 - [x] **ADD with AFTER** <!-- test: tests/integration_roadmap.rs::test_parse_add_with_after -->
 - [x] **UPDATE command** <!-- test: tests/unit_roadmap.rs::test_update_command -->
@@ -241,7 +249,6 @@
 - [x] **MOVE command** <!-- test: tests/unit_roadmap.rs::test_move_command -->
 - [x] **Comment skipping** <!-- test: tests/integration_roadmap.rs::test_parse_ignores_comments -->
 - [x] **Summary generation** <!-- test: tests/integration_roadmap.rs::test_summary_format -->
-- [ ] **<!-- test: tests/integration_roadmap.rs::test_parse_multiple_commands -->**
 
 ### Roadmap CLI
 - [x] **roadmap init** <!-- test: tests/cli_roadmap.rs::test_init_creates_file -->
@@ -306,9 +313,16 @@
 - [ ] **All-or-nothing execution (rollback on error)** <!-- test: tests/integration_roadmap.rs::test_rollback_on_error -->
 - [ ] **Verbose plan output** <!-- test: tests/cli_roadmap.rs::test_verbose_plan -->
 
+### Escape Hatches
+- [ ] **warden apply --force flag** <!-- test: tests/cli_apply.rs::test_force_flag -->
+- [ ] **Quarantine mode (// warden:quarantine marker)** <!-- test: tests/integration_apply.rs::test_quarantine_marker -->
+- [ ] **Quarantine report in warden scan** <!-- test: tests/integration_core.rs::test_quarantine_report -->
+
 ---
 
-## v0.8.0 — Dependency Graph
+## v0.8.0 — Dependency Graph ⚡ HIGH PRIORITY
+
+> **Why this matters:** Efficient context management is what makes AI assistance scale. Understanding file relationships enables surgical context packing.
 
 *Build the import graph for smart context generation.*
 
@@ -371,7 +385,9 @@
 
 ---
 
-## v0.9.0 — Smart Context
+## v0.9.0 — Smart Context ⚡ HIGH PRIORITY
+
+> **Ship incrementally:** Start with `--from-errors` (highest ROI), then add cluster/trace packing.
 
 *Give AI exactly what it needs, nothing more.*
 
@@ -384,7 +400,6 @@
 - [ ] **--json flag (machine-readable map)** <!-- test: tests/cli_map.rs::test_map_json -->
 - [ ] **Module description extraction (//! or docstring)** <!-- test: tests/cli_map.rs::test_map_docs -->
 - [ ] **Entry point detection (main.rs, lib.rs, index.ts)** <!-- test: tests/cli_map.rs::test_entry_point -->
-- [ ] **apply --force flag**"**
 
 ### Error-Driven Packing
 - [ ] **warden pack --from-errors flag** <!-- test: tests/integration_error_pack.rs::test_from_errors_flag -->
@@ -493,6 +508,20 @@
 - [ ] **--highlight PATH flag (color specific subgraph)** <!-- test: tests/cli_graph.rs::test_highlight -->
 - [ ] **Interactive HTML export (D3.js)** <!-- test: tests/cli_graph.rs::test_html_export -->
 - [ ] **Terminal ASCII graph (small projects)** <!-- test: tests/cli_graph.rs::test_ascii_graph -->
+
+---
+
+## v0.13.0 — Legacy Adoption
+
+*Make Warden adoptable in existing codebases.*
+
+### Baseline System
+- [ ] **warden baseline command (snapshot current violations)** <!-- test: tests/cli_baseline.rs::test_baseline_creation -->
+- [ ] **Baseline file format (.warden-baseline.json)** <!-- test: tests/unit_baseline.rs::test_baseline_format -->
+- [ ] **Baseline comparison mode (only report new violations)** <!-- test: tests/integration_baseline.rs::test_baseline_comparison -->
+- [ ] **--baseline flag for warden scan** <!-- test: tests/cli_baseline.rs::test_baseline_flag -->
+- [ ] **Auto-generate warden:ignore for existing violations** <!-- test: tests/cli_baseline.rs::test_auto_ignore -->
+- [ ] **Gradual tightening guide** [no-test] *(documentation)*
 
 ---
 
