@@ -13,14 +13,14 @@ use warden_core::roadmap::Roadmap;
 /// This prevents the diff engine from generating invalid `DELETE ""` commands.
 #[test]
 fn test_empty_id_skipped() {
-    let content = r#"# Test Roadmap
+    let content = r"# Test Roadmap
 
 ## Section
 
 - [x] **<!-- test: some/path.rs::test_func -->**
 - [x] **   ** <!-- test: another/path.rs::test_func2 -->
 - [x] **Valid task here** <!-- test: valid/path.rs::test_valid -->
-"#;
+";
 
     let roadmap = Roadmap::parse(content);
     let tasks = roadmap.all_tasks();
@@ -29,8 +29,7 @@ fn test_empty_id_skipped() {
     for task in &tasks {
         assert!(
             !task.id.is_empty(),
-            "Found task with empty ID: {:?}",
-            task
+            "Found task with empty ID: {task:?}"
         );
     }
 
@@ -49,7 +48,7 @@ fn test_empty_id_skipped() {
 /// but should become "pattern" and "pattern-1".
 #[test]
 fn test_id_collision_resolved() {
-    let content = r#"# Test Roadmap
+    let content = r"# Test Roadmap
 
 ## Patterns
 
@@ -57,7 +56,7 @@ fn test_id_collision_resolved() {
 - [x] **Pattern: second**
 - [x] **Pattern: third**
 - [ ] **Different task**
-"#;
+";
 
     let roadmap = Roadmap::parse(content);
     let tasks = roadmap.all_tasks();
@@ -73,13 +72,12 @@ fn test_id_collision_resolved() {
 
     // Verify all IDs are unique
     let mut sorted = ids.clone();
-    sorted.sort();
+    sorted.sort_unstable();
     sorted.dedup();
     assert_eq!(
         ids.len(),
         sorted.len(),
-        "Duplicate IDs found: {:?}",
-        ids
+        "Duplicate IDs found: {ids:?}"
     );
 }
 
@@ -90,14 +88,14 @@ fn test_id_collision_resolved() {
 /// rather than DELETE + ADD.
 #[test]
 fn test_anchor_id_extraction() {
-    let content = r#"# Test Roadmap
+    let content = r"# Test Roadmap
 
 ## Features
 
 - [x] **Some descriptive text here** <!-- test: tests/integration.rs::test_my_feature -->
 - [x] **Another feature** <!-- test: tests/unit.rs::test_another_thing -->
 - [ ] **No anchor task**
-"#;
+";
 
     let roadmap = Roadmap::parse(content);
     let tasks = roadmap.all_tasks();
@@ -134,12 +132,12 @@ fn test_anchor_id_extraction() {
 /// is used for the ID (not the full path).
 #[test]
 fn test_anchor_extracts_function_name_only() {
-    let content = r#"# Roadmap
+    let content = r"# Roadmap
 
 ## Section
 
 - [x] **Task** <!-- test: tests/very/deep/nested/path.rs::test_the_function -->
-"#;
+";
 
     let roadmap = Roadmap::parse(content);
     let tasks = roadmap.all_tasks();
@@ -156,13 +154,13 @@ fn test_anchor_extracts_function_name_only() {
 /// reference the same test function (edge case but possible).
 #[test]
 fn test_anchor_collision_deduplicated() {
-    let content = r#"# Roadmap
+    let content = r"# Roadmap
 
 ## Section
 
 - [x] **First mention** <!-- test: tests/foo.rs::test_shared -->
 - [x] **Second mention** <!-- test: tests/bar.rs::test_shared -->
-"#;
+";
 
     let roadmap = Roadmap::parse(content);
     let tasks = roadmap.all_tasks();
@@ -178,13 +176,13 @@ fn test_anchor_collision_deduplicated() {
 /// These should fall back to text-based slugification.
 #[test]
 fn test_no_test_marker_uses_text_id() {
-    let content = r#"# Roadmap
+    let content = r"# Roadmap
 
 ## Section
 
 - [x] **Documentation site** [no-test]
 - [x] **Logo and branding** [no-test]
-"#;
+";
 
     let roadmap = Roadmap::parse(content);
     let tasks = roadmap.all_tasks();

@@ -13,19 +13,19 @@ use warden_core::roadmap::{diff, Roadmap};
 /// accurate intent detection.
 #[test]
 fn test_text_change_is_update() {
-    let current = r#"# Roadmap
+    let current = r"# Roadmap
 
 ## Features
 
 - [x] **Old descriptive text** <!-- test: tests/feature.rs::test_my_feature -->
-"#;
+";
 
-    let incoming = r#"# Roadmap
+    let incoming = r"# Roadmap
 
 ## Features
 
 - [x] **New improved text** <!-- test: tests/feature.rs::test_my_feature -->
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(current);
     let inc_roadmap = Roadmap::parse(incoming);
@@ -74,8 +74,7 @@ fn test_text_change_is_update() {
     if let warden_core::roadmap::Command::Update { path, text } = &updates[0] {
         assert!(
             path.contains("test-my-feature"),
-            "UPDATE path should reference test-my-feature, got: {}",
-            path
+            "UPDATE path should reference test-my-feature, got: {path}"
         );
         assert_eq!(
             text, "New improved text",
@@ -87,21 +86,21 @@ fn test_text_change_is_update() {
 /// Verifies that status changes are detected as CHECK/UNCHECK commands.
 #[test]
 fn test_status_change_detected() {
-    let current = r#"# Roadmap
+    let current = r"# Roadmap
 
 ## Features
 
 - [ ] **Pending task** <!-- test: tests/feature.rs::test_pending -->
 - [x] **Complete task** <!-- test: tests/feature.rs::test_complete -->
-"#;
+";
 
-    let incoming = r#"# Roadmap
+    let incoming = r"# Roadmap
 
 ## Features
 
 - [x] **Pending task** <!-- test: tests/feature.rs::test_pending -->
 - [ ] **Complete task** <!-- test: tests/feature.rs::test_complete -->
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(current);
     let inc_roadmap = Roadmap::parse(incoming);
@@ -125,20 +124,20 @@ fn test_status_change_detected() {
 /// Verifies that deleted tasks generate DELETE commands.
 #[test]
 fn test_deleted_task_detected() {
-    let current = r#"# Roadmap
+    let current = r"# Roadmap
 
 ## Features
 
 - [x] **Keep this** <!-- test: tests/a.rs::test_keep -->
 - [x] **Delete this** <!-- test: tests/b.rs::test_delete -->
-"#;
+";
 
-    let incoming = r#"# Roadmap
+    let incoming = r"# Roadmap
 
 ## Features
 
 - [x] **Keep this** <!-- test: tests/a.rs::test_keep -->
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(current);
     let inc_roadmap = Roadmap::parse(incoming);
@@ -167,20 +166,20 @@ fn test_deleted_task_detected() {
 /// Verifies that new tasks generate ADD commands.
 #[test]
 fn test_new_task_detected() {
-    let current = r#"# Roadmap
+    let current = r"# Roadmap
 
 ## Features
 
 - [x] **Existing** <!-- test: tests/a.rs::test_existing -->
-"#;
+";
 
-    let incoming = r#"# Roadmap
+    let incoming = r"# Roadmap
 
 ## Features
 
 - [x] **Existing** <!-- test: tests/a.rs::test_existing -->
 - [ ] **Brand new task** <!-- test: tests/b.rs::test_new -->
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(current);
     let inc_roadmap = Roadmap::parse(incoming);
@@ -198,7 +197,7 @@ fn test_new_task_detected() {
 /// Verifies that tasks moved between sections generate MOVE commands.
 #[test]
 fn test_moved_task_detected() {
-    let current = r#"# Roadmap
+    let current = r"# Roadmap
 
 ## Section A
 
@@ -206,16 +205,16 @@ fn test_moved_task_detected() {
 
 ## Section B
 
-"#;
+";
 
-    let incoming = r#"# Roadmap
+    let incoming = r"# Roadmap
 
 ## Section A
 
 ## Section B
 
 - [x] **Mobile task** <!-- test: tests/x.rs::test_mobile -->
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(current);
     let inc_roadmap = Roadmap::parse(incoming);
@@ -233,14 +232,14 @@ fn test_moved_task_detected() {
 /// Verifies that new sections generate SECTION commands.
 #[test]
 fn test_new_section_detected() {
-    let current = r#"# Roadmap
+    let current = r"# Roadmap
 
 ## Existing Section
 
 - [x] **Task** <!-- test: tests/a.rs::test_a -->
-"#;
+";
 
-    let incoming = r#"# Roadmap
+    let incoming = r"# Roadmap
 
 ## Existing Section
 
@@ -249,7 +248,7 @@ fn test_new_section_detected() {
 ## Brand New Section
 
 - [ ] **New task**
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(current);
     let inc_roadmap = Roadmap::parse(incoming);
@@ -268,19 +267,19 @@ fn test_new_section_detected() {
 /// This was a critical bug that caused invalid command generation.
 #[test]
 fn test_no_empty_delete_paths() {
-    let current = r#"# Roadmap
+    let current = r"# Roadmap
 
 ## Section
 
 - [x] **Valid task** <!-- test: tests/a.rs::test_valid -->
 - [x] **Another valid** <!-- test: tests/b.rs::test_another -->
-"#;
+";
 
-    let incoming = r#"# Roadmap
+    let incoming = r"# Roadmap
 
 ## Section
 
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(current);
     let inc_roadmap = Roadmap::parse(incoming);
@@ -291,8 +290,7 @@ fn test_no_empty_delete_paths() {
         if let warden_core::roadmap::Command::Delete { path } = cmd {
             assert!(
                 !path.is_empty(),
-                "DELETE command has empty path: {:?}",
-                cmd
+                "DELETE command has empty path: {cmd:?}"
             );
         }
     }
@@ -301,19 +299,19 @@ fn test_no_empty_delete_paths() {
 /// Verifies combined operations: text change + status change on same task.
 #[test]
 fn test_combined_update_and_status_change() {
-    let current = r#"# Roadmap
+    let current = r"# Roadmap
 
 ## Features
 
 - [ ] **Old text** <!-- test: tests/x.rs::test_combo -->
-"#;
+";
 
-    let incoming = r#"# Roadmap
+    let incoming = r"# Roadmap
 
 ## Features
 
 - [x] **New text** <!-- test: tests/x.rs::test_combo -->
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(current);
     let inc_roadmap = Roadmap::parse(incoming);
@@ -335,13 +333,13 @@ fn test_combined_update_and_status_change() {
 /// Verifies no commands generated when roadmaps are identical.
 #[test]
 fn test_identical_roadmaps_no_commands() {
-    let content = r#"# Roadmap
+    let content = r"# Roadmap
 
 ## Features
 
 - [x] **Task one** <!-- test: tests/a.rs::test_one -->
 - [ ] **Task two** <!-- test: tests/b.rs::test_two -->
-"#;
+";
 
     let curr_roadmap = Roadmap::parse(content);
     let inc_roadmap = Roadmap::parse(content);
@@ -350,7 +348,6 @@ fn test_identical_roadmaps_no_commands() {
 
     assert!(
         commands.is_empty(),
-        "Identical roadmaps should produce no commands, got: {:?}",
-        commands
+        "Identical roadmaps should produce no commands, got: {commands:?}"
     );
 }
