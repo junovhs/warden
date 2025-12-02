@@ -1,17 +1,18 @@
-// src/pack.rs
+// src/pack/mod.rs
+pub mod formats;
+
 use crate::analysis::RuleEngine;
 use crate::clipboard;
 use crate::config::{Config, GitMode};
 use crate::discovery;
 use crate::prompt::PromptGenerator;
-use crate::skeleton;
 use crate::tokens::Tokenizer;
 use anyhow::Result;
 use clap::ValueEnum;
 use colored::Colorize;
 use std::fmt::Write;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, ValueEnum, Default)]
 pub enum OutputFormat {
@@ -95,7 +96,10 @@ pub fn generate_content(files: &[PathBuf], opts: &PackOptions, config: &Config) 
         inject_violations(&mut ctx, files, config)?;
     }
 
-    write_body(files, &mut ctx, opts)?;
+    match opts.format {
+        OutputFormat::Text => formats::pack_nabla(files, &mut ctx, opts)?,
+        OutputFormat::Xml => formats::pack_xml(files, &mut ctx, opts)?,
+    }
 
     if opts.prompt {
         write_footer(&mut ctx, config)?;
@@ -137,13 +141,6 @@ fn inject_violations(ctx: &mut String, files: &[PathBuf], config: &Config) -> Re
     writeln!(ctx)?;
 
     Ok(())
-}
-
-fn write_body(files: &[PathBuf], ctx: &mut String, opts: &PackOptions) -> Result<()> {
-    match opts.format {
-        OutputFormat::Text => pack_nabla(files, ctx, opts),
-        OutputFormat::Xml => pack_xml(files, ctx, opts),
-    }
 }
 
 fn write_header(ctx: &mut String, config: &Config) -> Result<()> {
@@ -194,65 +191,5 @@ fn output_result(content: &str, tokens: usize, opts: &PackOptions) -> Result<()>
     }
 
     println!("{info}");
-    Ok(())
-}
-
-fn should_skeletonize(path: &Path, opts: &PackOptions) -> bool {
-    // If global skeleton flag is on, everything is skeletonized
-    if opts.skeleton {
-        return true;
-    }
-
-    // If a target is specified, everything EXCEPT the target is skeletonized
-    if let Some(target) = &opts.target {
-        // We do a loose match: if the path ends with the target string.
-        // This allows "warden pack src/main.rs" to match "./src/main.rs"
-        return !path.ends_with(target);
-    }
-
-    false
-}
-
-fn pack_nabla(files: &[PathBuf], out: &mut String, opts: &PackOptions) -> Result<()> {
-    for path in files {
-        let p_str = path.to_string_lossy().replace('\\', "/");
-        writeln!(out, "∇∇∇ {p_str} ∇∇∇")?;
-
-        match fs::read_to_string(path) {
-            Ok(content) => {
-                if should_skeletonize(path, opts) {
-                    out.push_str(&skeleton::clean(path, &content));
-                } else {
-                    out.push_str(&content);
-                }
-            }
-            Err(e) => writeln!(out, "// <ERROR READING FILE: {e}>")?,
-        }
-        writeln!(out, "\n∆∆∆\n")?;
-    }
-    Ok(())
-}
-
-fn pack_xml(files: &[PathBuf], out: &mut String, opts: &PackOptions) -> Result<()> {
-    writeln!(out, "<documents>")?;
-    for path in files {
-        let p_str = path.to_string_lossy().replace('\\', "/");
-        writeln!(out, "  <document path=\"{p_str}\"><![CDATA[")?;
-
-        match fs::read_to_string(path) {
-            Ok(content) => {
-                if should_skeletonize(path, opts) {
-                    out.push_str(
-                        &skeleton::clean(path, &content).replace("]]>", "]]]]><![CDATA[>"),
-                    );
-                } else {
-                    out.push_str(&content.replace("]]>", "]]]]><![CDATA[>"));
-                }
-            }
-            Err(e) => writeln!(out, "<!-- ERROR: {e} -->")?,
-        }
-        writeln!(out, "]]></document>")?;
-    }
-    writeln!(out, "</documents>")?;
     Ok(())
 }
