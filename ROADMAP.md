@@ -271,10 +271,10 @@
 *Enforce the contract: every feature has verified tests.*
 
 ### Parser Hardening
-- [ ] **Empty task ID filtering** <!-- test: tests/unit_parser.rs::test_empty_id_skipped -->
-- [ ] **Task ID collision detection** <!-- test: tests/unit_parser.rs::test_id_collision_resolved -->
-- [ ] **Anchor-based task matching** <!-- test: tests/unit_parser.rs::test_anchor_id_extraction -->
-- [ ] **Smart UPDATE inference (vs DELETE+ADD)** <!-- test: tests/unit_diff.rs::test_text_change_is_update -->
+- [x] **Empty task ID filtering** <!-- test: tests/unit_parser.rs::test_empty_id_skipped -->
+- [x] **Task ID collision detection** <!-- test: tests/unit_parser.rs::test_id_collision_resolved -->
+- [x] **Anchor-based task matching** <!-- test: tests/unit_parser.rs::test_anchor_id_extraction -->
+- [x] **Smart UPDATE inference (vs DELETE+ADD)** <!-- test: tests/unit_diff.rs::test_text_change_is_update -->
 
 ### Audit System
 - [x] **Scan completed tasks** <!-- test: tests/integration_audit.rs::test_scans_completed_only -->
