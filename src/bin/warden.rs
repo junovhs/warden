@@ -1,3 +1,4 @@
+// src/bin/warden.rs
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -45,7 +46,6 @@ enum Commands {
         #[arg(long, short)]
         commit: bool,
     },
-    /// Open the interactive configuration editor
     Config,
     #[command(subcommand)]
     Roadmap(RoadmapCommand),
@@ -54,12 +54,10 @@ enum Commands {
         stdout: bool,
         #[arg(long, short)]
         copy: bool,
-        /// Skip including the system prompt (prompt is included by default)
         #[arg(long)]
         noprompt: bool,
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
-        /// Force skeletonization of all files (overrides focus target)
         #[arg(long)]
         skeleton: bool,
         #[arg(long)]
@@ -70,7 +68,6 @@ enum Commands {
         code_only: bool,
         #[arg(long, short)]
         verbose: bool,
-        /// Focus on a specific file (others will be skeletonized)
         #[arg(value_name = "TARGET")]
         target: Option<PathBuf>,
     },
@@ -103,37 +100,53 @@ fn dispatch_command(cli: &Cli) -> Result<()> {
 
 fn dispatch_subcommand(cmd: &Commands) -> Result<()> {
     match cmd {
-        Commands::Prompt { copy } => handle_prompt(*copy),
         Commands::Check => run_command("check"),
         Commands::Fix => run_command("fix"),
-        Commands::Apply => handle_apply(),
-        Commands::Clean { commit } => warden_core::clean::run(*commit),
         Commands::Config => warden_core::tui::run_config(),
-        Commands::Roadmap(cmd) => handle_command(cmd.clone()),
-        Commands::Pack {
-            stdout,
-            copy,
-            noprompt,
-            format,
-            skeleton,
-            git_only,
-            no_git,
-            code_only,
-            verbose,
-            target,
-        } => pack::run(&PackOptions {
-            stdout: *stdout,
-            copy: *copy,
-            prompt: !*noprompt,
-            format: format.clone(),
-            skeleton: *skeleton,
-            git_only: *git_only,
-            no_git: *no_git,
-            code_only: *code_only,
-            verbose: *verbose,
-            target: target.clone(),
-        }),
+        Commands::Apply => handle_apply(),
+        _ => dispatch_with_args(cmd),
     }
+}
+
+fn dispatch_with_args(cmd: &Commands) -> Result<()> {
+    match cmd {
+        Commands::Prompt { copy } => handle_prompt(*copy),
+        Commands::Clean { commit } => warden_core::clean::run(*commit),
+        Commands::Roadmap(sub) => handle_command(sub.clone()),
+        Commands::Pack { .. } => handle_pack(cmd),
+        _ => Ok(()),
+    }
+}
+
+fn handle_pack(cmd: &Commands) -> Result<()> {
+    let Commands::Pack {
+        stdout,
+        copy,
+        noprompt,
+        format,
+        skeleton,
+        git_only,
+        no_git,
+        code_only,
+        verbose,
+        target,
+    } = cmd
+    else {
+        return Ok(());
+    };
+
+    pack::run(&PackOptions {
+        stdout: *stdout,
+        copy: *copy,
+        prompt: !*noprompt,
+        format: format.clone(),
+        skeleton: *skeleton,
+        git_only: *git_only,
+        no_git: *no_git,
+        code_only: *code_only,
+        verbose: *verbose,
+        target: target.clone(),
+    })
 }
 
 fn dispatch_default(ui: bool) -> Result<()> {
@@ -147,7 +160,6 @@ fn dispatch_default(ui: bool) -> Result<()> {
 fn handle_apply() -> Result<()> {
     let mut config = Config::new();
     config.load_local_config();
-
     let ctx = ApplyContext::new(&config);
     let outcome = apply::run_apply(&ctx)?;
     apply::print_result(&outcome);
@@ -158,13 +170,9 @@ fn ensure_config_exists() {
     if Path::new("warden.toml").exists() {
         return;
     }
-    // Default to Standard strictness if auto-generating without wizard
     let project = warden_core::project::ProjectType::detect();
-    let content = warden_core::project::generate_toml(
-        project, 
-        warden_core::project::Strictness::Standard
-    );
-    
+    let content =
+        warden_core::project::generate_toml(project, warden_core::project::Strictness::Standard);
     if fs::write("warden.toml", &content).is_ok() {
         eprintln!("{}", "📝 Created warden.toml".dimmed());
     }
@@ -198,47 +206,48 @@ fn run_command(name: &str) -> Result<()> {
     };
 
     println!("{} Running '{}' pipeline...", "🚀".green(), name);
+    execute_command_list(commands)
+}
 
+fn execute_command_list(commands: &[String]) -> Result<()> {
     for cmd_str in commands {
-        println!("   {} {}", "exec:".dimmed(), cmd_str.dimmed());
-        let parts: Vec<&str> = cmd_str.split_whitespace().collect();
-        let (prog, args) = parts.split_first().unwrap_or((&"", &[]));
-
-        let status = Command::new(prog).args(args).status();
-
-        match status {
-            Ok(s) if !s.success() => exit_with_code(s.code().unwrap_or(1))?,
-            Ok(_) => {}
-            Err(e) => {
-                handle_exec_error(&e, prog);
-                process::exit(1);
-            }
-        }
+        execute_single_command(cmd_str)?;
     }
     Ok(())
 }
 
-fn exit_with_code(code: i32) -> Result<()> {
+fn execute_single_command(cmd_str: &str) -> Result<()> {
+    println!("   {} {}", "exec:".dimmed(), cmd_str.dimmed());
+    let parts: Vec<&str> = cmd_str.split_whitespace().collect();
+    let (prog, args) = parts.split_first().unwrap_or((&"", &[]));
+
+    match Command::new(prog).args(args).status() {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => exit_with_failure(s.code().unwrap_or(1)),
+        Err(e) => exit_with_exec_error(&e, prog),
+    }
+}
+
+fn exit_with_failure(code: i32) -> Result<()> {
     eprintln!("{} Command failed with exit code {code}", "❌".red());
     process::exit(code);
 }
 
-fn handle_exec_error(e: &std::io::Error, prog: &str) {
+fn exit_with_exec_error(e: &io::Error, prog: &str) -> Result<()> {
     if e.kind() == io::ErrorKind::NotFound {
         eprintln!("{} Command not found: {prog}", "error:".red());
         eprintln!("  Check that the program is installed and in PATH");
     } else {
         eprintln!("{} Failed to execute: {e}", "error:".red());
     }
+    process::exit(1);
 }
 
 fn run_scan() -> Result<()> {
     let config = load_config();
     let files = discovery::discover(&config)?;
     let report = scan_files(&config, files);
-
     reporting::print_report(&report)?;
-
     if report.has_errors() {
         process::exit(1);
     }
@@ -258,7 +267,7 @@ fn load_config() -> Config {
     config
 }
 
-fn scan_files(config: &Config, files: Vec<std::path::PathBuf>) -> ScanReport {
+fn scan_files(config: &Config, files: Vec<PathBuf>) -> ScanReport {
     RuleEngine::new(config.clone()).scan(files)
 }
 
@@ -287,6 +296,5 @@ fn run_tui_with_report(report: ScanReport) -> Result<()> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-
     res
 }

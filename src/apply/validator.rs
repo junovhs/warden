@@ -1,11 +1,11 @@
 // src/apply/validator.rs
 use crate::apply::messages;
 use crate::apply::types::{ApplyOutcome, ExtractedFiles, Manifest, Operation};
-use crate::roadmap::{diff, Roadmap, Command, MovePosition};
+use crate::roadmap::{diff, Command, Roadmap};
 use regex::Regex;
+use std::fmt::Write;
 use std::path::Path;
 use std::sync::LazyLock;
-use std::fmt::Write;
 
 const SENSITIVE_PATHS: &[&str] = &[
     ".git/",
@@ -19,11 +19,7 @@ const SENSITIVE_PATHS: &[&str] = &[
     ".warden_apply_backup/",
 ];
 
-const ALLOWED_DOTFILES: &[&str] = &[
-    ".gitignore",
-    ".wardenignore",
-    ".warden_intent",
-];
+const ALLOWED_DOTFILES: &[&str] = &[".gitignore", ".wardenignore", ".warden_intent"];
 
 static LAZY_MARKERS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     [
@@ -48,16 +44,16 @@ pub fn validate(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome
     let mut errors = Vec::new();
 
     for path in extracted.keys() {
-         if path.eq_ignore_ascii_case("ROADMAP.md") {
-             if let Some(outcome) = handle_roadmap_rewrite(path, &extracted[path].content) {
-                 return outcome;
-             }
-             errors.push(
+        if path.eq_ignore_ascii_case("ROADMAP.md") {
+            if let Some(outcome) = handle_roadmap_rewrite(path, &extracted[path].content) {
+                return outcome;
+            }
+            errors.push(
                 "PROTECTED: ROADMAP.md is managed programmatically. Use 'warden roadmap apply' commands instead of rewriting the file.".to_string(),
-             );
-         } else {
-             validate_single_path(path, &mut errors);
-         }
+            );
+        } else {
+            validate_single_path(path, &mut errors);
+        }
     }
 
     if !errors.is_empty() {
@@ -81,6 +77,10 @@ pub fn validate(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome
         };
     }
 
+    build_success_outcome(manifest, extracted)
+}
+
+fn build_success_outcome(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome {
     let written = extracted.keys().cloned().collect();
     let deleted = manifest
         .iter()
@@ -97,49 +97,13 @@ pub fn validate(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome
 }
 
 fn handle_roadmap_rewrite(path: &str, incoming_content: &str) -> Option<ApplyOutcome> {
-    let local_path = Path::new(path);
-    if !local_path.exists() {
-        return None;
-    }
-
-    let Ok(current) = Roadmap::from_file(local_path) else {
-        return None;
-    };
-
-    let incoming = Roadmap::parse(incoming_content);
-    let commands = diff::diff(&current, &incoming);
+    let commands = diff_roadmap(path, incoming_content)?;
 
     if commands.is_empty() {
         return None;
     }
 
-    let mut msg = String::new();
-    let _ = writeln!(msg, "The Warden Protocol blocked a direct rewrite of ROADMAP.md.\n");
-    let _ = writeln!(msg, "However, I inferred your intent. Please use these commands instead:\n");
-    let _ = writeln!(msg, "#__WARDEN_FILE__# ROADMAP");
-    let _ = writeln!(msg, "===ROADMAP===");
-
-    for cmd in commands {
-        match cmd {
-            Command::Check { path } => { let _ = writeln!(msg, "CHECK {path}"); },
-            Command::Uncheck { path } => { let _ = writeln!(msg, "UNCHECK {path}"); },
-            Command::Update { path, text } => { let _ = writeln!(msg, "UPDATE {path} \"{text}\""); },
-            Command::Add { parent, text, .. } => { let _ = writeln!(msg, "ADD {parent} \"{text}\""); },
-            Command::Delete { path } => { let _ = writeln!(msg, "DELETE {path}"); },
-            Command::AddSection { heading } => { let _ = writeln!(msg, "SECTION \"{heading}\""); },
-            Command::Move { path, position } => {
-                match position {
-                    MovePosition::After(t) => { let _ = writeln!(msg, "MOVE {path} AFTER {t}"); },
-                    MovePosition::Before(t) => { let _ = writeln!(msg, "MOVE {path} BEFORE {t}"); },
-                    MovePosition::EndOfSection(s) => { let _ = writeln!(msg, "MOVE {path} TO {s}"); },
-                }
-            },
-            _ => {}
-        }
-    }
-
-    let _ = writeln!(msg, "===END===");
-    let _ = writeln!(msg, "#__WARDEN_END__#");
+    let msg = build_roadmap_rejection_message(&commands);
 
     Some(ApplyOutcome::ValidationFailure {
         errors: vec!["Roadmap rewrite converted to commands".to_string()],
@@ -148,29 +112,65 @@ fn handle_roadmap_rewrite(path: &str, incoming_content: &str) -> Option<ApplyOut
     })
 }
 
+fn diff_roadmap(path: &str, incoming_content: &str) -> Option<Vec<Command>> {
+    let local_path = Path::new(path);
+    if !local_path.exists() {
+        return None;
+    }
+
+    let current = Roadmap::from_file(local_path).ok()?;
+    let incoming = Roadmap::parse(incoming_content);
+    Some(diff::diff(&current, &incoming))
+}
+
+fn build_roadmap_rejection_message(commands: &[Command]) -> String {
+    let mut msg = String::new();
+    let _ = writeln!(
+        msg,
+        "The Warden Protocol blocked a direct rewrite of ROADMAP.md.\n"
+    );
+    let _ = writeln!(
+        msg,
+        "However, I inferred your intent. Please use these commands instead:\n"
+    );
+    let _ = writeln!(msg, "#__WARDEN_FILE__# ROADMAP");
+    let _ = writeln!(msg, "===ROADMAP===");
+
+    for cmd in commands {
+        let _ = writeln!(msg, "{cmd}");
+    }
+
+    let _ = writeln!(msg, "===END===");
+    let _ = writeln!(msg, "#__WARDEN_END__#");
+    msg
+}
+
 fn validate_single_path(path: &str, errors: &mut Vec<String>) {
     if path.eq_ignore_ascii_case("ROADMAP.md") {
         return;
     }
 
+    if let Some(err) = check_path_security(path) {
+        errors.push(err);
+    }
+}
+
+fn check_path_security(path: &str) -> Option<String> {
     if has_traversal(path) {
-        errors.push(format!("SECURITY: path contains directory traversal: {path}"));
-        return;
+        return Some(format!(
+            "SECURITY: path contains directory traversal: {path}"
+        ));
     }
-
     if is_absolute_path(path) {
-        errors.push(format!("SECURITY: absolute path not allowed: {path}"));
-        return;
+        return Some(format!("SECURITY: absolute path not allowed: {path}"));
     }
-
     if is_sensitive_path(path) {
-        errors.push(format!("SECURITY: sensitive path blocked: {path}"));
-        return;
+        return Some(format!("SECURITY: sensitive path blocked: {path}"));
     }
-
     if is_hidden_file(path) {
-        errors.push(format!("SECURITY: hidden file not allowed: {path}"));
+        return Some(format!("SECURITY: hidden file not allowed: {path}"));
     }
+    None
 }
 
 fn has_traversal(path: &str) -> bool {

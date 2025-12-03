@@ -1,3 +1,4 @@
+// src/roadmap/types.rs
 use std::fmt;
 
 #[derive(Debug, Clone)]
@@ -30,7 +31,7 @@ pub struct Task {
     pub indent: u8,
     pub line: usize,
     pub children: Vec<Task>,
-    pub tests: Vec<String>, // Explicitly linked test files
+    pub tests: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,11 +85,44 @@ pub enum Command {
     },
 }
 
+impl fmt::Display for Command {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Check { path } => write!(f, "CHECK {path}"),
+            Self::Uncheck { path } => write!(f, "UNCHECK {path}"),
+            Self::Delete { path } => write!(f, "DELETE {path}"),
+            Self::AddSection { heading } => write!(f, "SECTION \"{heading}\""),
+            Self::ReplaceSection { id, .. } => write!(f, "REPLACE {id}"),
+            _ => write!(f, "{}", format_complex_command(self)),
+        }
+    }
+}
+
+fn format_complex_command(cmd: &Command) -> String {
+    match cmd {
+        Command::Update { path, text } => format!("UPDATE {path} \"{text}\""),
+        Command::Add { parent, text, .. } => format!("ADD {parent} \"{text}\""),
+        Command::Note { path, note } => format!("NOTE {path} \"{note}\""),
+        Command::Move { path, position } => format!("MOVE {path} {position}"),
+        _ => String::new(),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum MovePosition {
     After(String),
     Before(String),
     EndOfSection(String),
+}
+
+impl fmt::Display for MovePosition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::After(t) => write!(f, "AFTER {t}"),
+            Self::Before(t) => write!(f, "BEFORE {t}"),
+            Self::EndOfSection(s) => write!(f, "TO {s}"),
+        }
+    }
 }
 
 /// A batch of commands parsed from AI output
