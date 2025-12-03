@@ -78,49 +78,42 @@ THE 3 LAWS (Non-Negotiable):
 □ Nesting ≤ {depth}
 □ Args ≤ {args}
 □ No .unwrap() or .expect()
-□ Use Nabla Format (∇∇∇ ... ∆∆∆)"
+□ Use Warden Format (#__WARDEN_FILE__# ... #__WARDEN_END__#)"
         )
     }
 }
 
 fn build_output_format() -> String {
-    let nabla = "∇";
-    let delta = "∆";
-    let open = format!("{nabla}{nabla}{nabla}");
-    let close = format!("{delta}{delta}{delta}");
+    r#"OUTPUT FORMAT (MANDATORY):
 
-    format!(
-        r#"OUTPUT FORMAT (MANDATORY):
-
-1. Explain the changes (Technical Plan) using NABLA PROTOCOL:
+1. Explain the changes (Technical Plan):
    - Must start with "GOAL:"
    - Must include "CHANGES:" list
 
-{open} PLAN {open}
+#__WARDEN_PLAN__#
 GOAL: Refactor authentication module.
 CHANGES:
 1. Extract user validation to new file.
 2. Update config parser.
-{close}
+#__WARDEN_END__#
 
-2. Declare the plan (Manifest) using NABLA PROTOCOL:
+2. Declare the plan (Manifest):
 
-{open} MANIFEST {open}
+#__WARDEN_MANIFEST__#
 path/to/file1.rs
 path/to/file2.rs [NEW]
-{close}
+#__WARDEN_END__#
 
-3. Provide EACH file using NABLA PROTOCOL:
+3. Provide EACH file:
 
-{open} path/to/file1.rs {open}
+#__WARDEN_FILE__# path/to/file1.rs
 [file content]
-{close}
+#__WARDEN_END__#
 
 RULES:
-- Do NOT use markdown code blocks (e.g. triple backticks) to wrap the file. The {open} delimiters ARE the fence.
+- Do NOT use markdown code blocks (e.g. triple backticks) to wrap the file. The #__WARDEN_FILE__# delimiters ARE the fence.
 - You MAY use markdown inside the file content.
-- Every file in the manifest MUST have a matching {open} block.
+- Every file in the manifest MUST have a matching #__WARDEN_FILE__# block.
 - Paths must match exactly.
-- Do NOT truncate files (No "// ...")."#
-    )
+- Do NOT truncate files (No "// ...")."#.to_string()
 }

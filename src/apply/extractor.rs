@@ -7,34 +7,34 @@ use std::collections::HashMap;
 /// Extracts the optional PLAN block.
 #[must_use]
 pub fn extract_plan(response: &str) -> Option<String> {
-    let open_re = Regex::new(r"(?m)^∇∇∇\s*PLAN\s*∇∇∇\s*$").ok()?;
-    let close_re = Regex::new(r"(?m)^∆∆∆\s*$").ok()?;
+    let open_re = Regex::new(r"(?m)^#__WARDEN_PLAN__#\s*$").ok()?;
+    let close_re = Regex::new(r"(?m)^#__WARDEN_END__#\s*$").ok()?;
 
     let start_match = open_re.find(response)?;
     let end_match = close_re.find_at(response, start_match.end())?;
-
     let content = &response[start_match.end()..end_match.start()];
     Some(content.trim().to_string())
 }
 
-/// Extracts file blocks using the Robust Delimiter Protocol (Nabla Format).
+/// Extracts file blocks using the Warden Delimiter Protocol.
 ///
 /// Format:
-/// ∇∇∇ path/to/file.rs ∇∇∇
+/// `#__WARDEN_FILE__#` path/to/file.rs
 /// [content]
-/// ∆∆∆
+/// `#__WARDEN_END__#`
 ///
 /// # Errors
 /// Returns error if regex compilation fails.
 pub fn extract_files(response: &str) -> Result<HashMap<String, FileContent>> {
     let mut files = HashMap::new();
-    let header_re = Regex::new(r"(?m)^∇∇∇\s*(.+?)\s*∇∇∇\s*$")?;
-    let footer_re = Regex::new(r"(?m)^∆∆∆\s*$")?;
+    let header_re = Regex::new(r"(?m)^#__WARDEN_FILE__#\s*(.+?)\s*$")?;
+    let footer_re = Regex::new(r"(?m)^#__WARDEN_END__#\s*$")?;
 
     let mut current_pos = 0;
-
     while let Some(header_match) = header_re.find_at(response, current_pos) {
-        current_pos = process_block(response, header_match, &footer_re, &mut files);
+        let caps = header_re.captures(&response[header_match.start()..]);
+        let path = caps.and_then(|c| c.get(1)).map(|m| m.as_str().to_string());
+        current_pos = process_block(response, header_match, path, &footer_re, &mut files);
     }
 
     Ok(files)
@@ -43,22 +43,22 @@ pub fn extract_files(response: &str) -> Result<HashMap<String, FileContent>> {
 fn process_block(
     response: &str,
     header_match: regex::Match,
+    path: Option<String>,
     footer_re: &Regex,
     files: &mut HashMap<String, FileContent>,
 ) -> usize {
-    let raw_path = header_match.as_str().replace('∇', "").trim().to_string();
+    let raw_path = path.unwrap_or_default().trim().to_string();
 
     // Skip MANIFEST and PLAN blocks (don't write them to disk)
-    if raw_path == "MANIFEST" || raw_path == "PLAN" {
+    if raw_path == "MANIFEST" || raw_path == "PLAN" || raw_path.is_empty() {
         return skip_block(response, header_match.end(), footer_re);
     }
 
     let content_start = header_match.end();
-
     if let Some(footer_match) = footer_re.find_at(response, content_start) {
         let content_end = footer_match.start();
         let raw_content = &response[content_start..content_end];
-        let clean_content = clean_nabla_content(raw_content);
+        let clean_content = clean_block_content(raw_content);
         let line_count = clean_content.lines().count();
 
         files.insert(
@@ -70,7 +70,7 @@ fn process_block(
         );
         footer_match.end()
     } else {
-        // Malformed/Truncated block, skip head
+        // Malformed/Truncated block, skip header
         content_start
     }
 }
@@ -83,9 +83,6 @@ fn skip_block(response: &str, start_pos: usize, footer_re: &Regex) -> usize {
     }
 }
 
-fn clean_nabla_content(raw: &str) -> String {
-    // We want to remove the single leading newline that usually follows the header
-    // and the single trailing newline before the footer, but keep everything else.
-    let content = raw.trim_matches('\n');
-    content.to_string()
+fn clean_block_content(raw: &str) -> String {
+    raw.trim_matches('\n').to_string()
 }

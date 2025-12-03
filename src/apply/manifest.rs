@@ -4,12 +4,12 @@ use anyhow::Result;
 use regex::Regex;
 
 /// Parses the delivery manifest block.
-/// Supports both Legacy XML and Nabla Protocol.
+/// Supports both Legacy XML and Warden Protocol.
 ///
 /// # Errors
 /// Returns error if regex compilation fails.
 pub fn parse_manifest(response: &str) -> Result<Option<Vec<ManifestEntry>>> {
-    if let Some((start, end)) = find_nabla_manifest(response)? {
+    if let Some((start, end)) = find_warden_manifest(response)? {
         let block = &response[start..end];
         let entries = parse_manifest_lines(block)?;
         return Ok(Some(entries));
@@ -24,17 +24,14 @@ pub fn parse_manifest(response: &str) -> Result<Option<Vec<ManifestEntry>>> {
     Ok(None)
 }
 
-fn find_nabla_manifest(response: &str) -> Result<Option<(usize, usize)>> {
-    // ∇∇∇ MANIFEST ∇∇∇
-    let open_re = Regex::new(r"∇∇∇\s*MANIFEST\s*∇∇∇")?;
-    // ∆∆∆
-    let close_re = Regex::new(r"∆∆∆")?;
+fn find_warden_manifest(response: &str) -> Result<Option<(usize, usize)>> {
+    let open_re = Regex::new(r"#__WARDEN_MANIFEST__#")?;
+    let close_re = Regex::new(r"#__WARDEN_END__#")?;
 
     let Some(start_match) = open_re.find(response) else {
         return Ok(None);
     };
-    
-    // Search for closer AFTER the opener
+
     let Some(end_match) = close_re.find_at(response, start_match.end()) else {
         return Ok(None);
     };
@@ -64,6 +61,7 @@ fn parse_manifest_lines(block: &str) -> Result<Vec<ManifestEntry>> {
             entries.push(entry);
         }
     }
+
     Ok(entries)
 }
 
@@ -95,6 +93,7 @@ fn parse_manifest_line(line: &str, marker_re: &Regex) -> Option<ManifestEntry> {
 
 fn parse_operation(line: &str) -> (String, Operation) {
     let upper = line.to_uppercase();
+
     if upper.contains("[NEW]") {
         (
             line.replace("[NEW]", "").replace("[new]", ""),

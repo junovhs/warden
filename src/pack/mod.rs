@@ -97,7 +97,7 @@ pub fn generate_content(files: &[PathBuf], opts: &PackOptions, config: &Config) 
     }
 
     match opts.format {
-        OutputFormat::Text => formats::pack_nabla(files, &mut ctx, opts)?,
+        OutputFormat::Text => formats::pack_warden(files, &mut ctx, opts)?,
         OutputFormat::Xml => formats::pack_xml(files, &mut ctx, opts)?,
     }
 

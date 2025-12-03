@@ -29,21 +29,21 @@ fn print_success(written: &[String], deleted: &[String], roadmap: &[String], bac
         println!("   (Backup created in .warden_apply_backup/)");
     }
     println!();
-    
+
     for file in written {
         println!("   {} {file}", "✓".green());
     }
     for file in deleted {
         println!("   {} {file}", "✗".red());
     }
-    
+
     if !roadmap.is_empty() {
         println!("{}", "\n   Roadmap Updates:".cyan());
         for msg in roadmap {
              println!("   {msg}");
         }
     }
-    
+
     println!();
     println!("Run {} to verify.", "warden check".yellow());
 }
@@ -87,7 +87,7 @@ pub fn format_ai_rejection(missing: &[String], errors: &[String]) -> String {
     let mut msg = String::from("The previous output was rejected by the Warden Protocol.\n\n");
 
     if !missing.is_empty() {
-        msg.push_str("MISSING FILES (Declared in MANIFEST but not found in Nabla blocks):\n");
+        msg.push_str("MISSING FILES (Declared in MANIFEST but no #__WARDEN_FILE__# block found):\n");
         for f in missing {
             let _ = writeln!(msg, "- {f}");
         }
@@ -106,12 +106,12 @@ pub fn format_ai_rejection(missing: &[String], errors: &[String]) -> String {
         msg.push('\n');
 
         if hint_dogfood {
-            msg.push_str("TIP: If you are actively 'dogfooding' (testing failure cases) or intentionally using banned patterns, verify the content matches the rules or use '// warden:ignore' on the file/line to bypass.\n\n");
+            msg.push_str("TIP: If you are actively 'dogfooding' or intentionally using banned patterns, use '// warden:ignore' to bypass.\n\n");
         }
     }
 
     msg.push_str(
-        "Please provide the missing or corrected files using the NABLA PROTOCOL (∇∇∇ ... ∆∆∆).",
+        "Please provide the missing or corrected files using #__WARDEN_FILE__# path ... #__WARDEN_END__#",
     );
     msg
 }

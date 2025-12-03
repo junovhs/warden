@@ -42,11 +42,9 @@ pub fn extract_quoted_text(s: &str) -> Result<(String, &str), String> {
     let s = s.trim();
     if let Some(stripped) = s.strip_prefix('"') {
         let end = find_closing_quote(stripped).ok_or("Unclosed quote")?;
-        // Unescape: \" -> "
         let content = stripped[..end].replace(r#"\""#, "\"");
         Ok((content, stripped[end + 1..].trim()))
     } else if let Some(idx) = s.find(" AFTER ") {
-        // Return text BEFORE ' AFTER ', and keep ' AFTER ' in the rest for parsing
         Ok((s[..idx].trim().to_string(), s[idx..].trim()))
     } else {
         Ok((s.to_string(), ""))
@@ -75,13 +73,11 @@ pub fn is_ignorable(line: &str) -> bool {
     u.starts_with("===")
         || u.starts_with("---")
         || u.starts_with("```")
-        || u.starts_with("∇∇∇")
-        || u.starts_with("∆∆∆")
+        || u.starts_with("#__WARDEN_")
         || u == "ROADMAP"
         || u == "END"
 }
 
-// Unicode-safe truncation to prevent panics on multi-byte chars
 #[must_use]
 pub fn truncate(s: &str, max_chars: usize) -> String {
     if s.chars().count() <= max_chars {

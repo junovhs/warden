@@ -46,14 +46,12 @@ static LAZY_MARKERS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
 #[must_use]
 pub fn validate(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome {
     let mut errors = Vec::new();
-    
-    // Check path safety and handle ROADMAP.md specifically
+
     for path in extracted.keys() {
          if path.eq_ignore_ascii_case("ROADMAP.md") {
              if let Some(outcome) = handle_roadmap_rewrite(path, &extracted[path].content) {
                  return outcome;
              }
-             // If we couldn't infer commands or load the file, default to standard block
              errors.push(
                 "PROTECTED: ROADMAP.md is managed programmatically. Use 'warden roadmap apply' commands instead of rewriting the file.".to_string(),
              );
@@ -98,8 +96,6 @@ pub fn validate(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome
     }
 }
 
-/// Attempts to diff the incoming ROADMAP.md with the existing one // warden:ignore
-/// and return a specific rejection message with proposed commands.
 fn handle_roadmap_rewrite(path: &str, incoming_content: &str) -> Option<ApplyOutcome> {
     let local_path = Path::new(path);
     if !local_path.exists() {
@@ -109,10 +105,10 @@ fn handle_roadmap_rewrite(path: &str, incoming_content: &str) -> Option<ApplyOut
     let Ok(current) = Roadmap::from_file(local_path) else {
         return None;
     };
-    
+
     let incoming = Roadmap::parse(incoming_content);
     let commands = diff::diff(&current, &incoming);
-    
+
     if commands.is_empty() {
         return None;
     }
@@ -120,9 +116,9 @@ fn handle_roadmap_rewrite(path: &str, incoming_content: &str) -> Option<ApplyOut
     let mut msg = String::new();
     let _ = writeln!(msg, "The Warden Protocol blocked a direct rewrite of ROADMAP.md.\n");
     let _ = writeln!(msg, "However, I inferred your intent. Please use these commands instead:\n");
-    let _ = writeln!(msg, "∇∇∇ ROADMAP ∇∇∇");
+    let _ = writeln!(msg, "#__WARDEN_FILE__# ROADMAP");
     let _ = writeln!(msg, "===ROADMAP===");
-    
+
     for cmd in commands {
         match cmd {
             Command::Check { path } => { let _ = writeln!(msg, "CHECK {path}"); },
@@ -141,9 +137,9 @@ fn handle_roadmap_rewrite(path: &str, incoming_content: &str) -> Option<ApplyOut
             _ => {}
         }
     }
-    
+
     let _ = writeln!(msg, "===END===");
-    let _ = writeln!(msg, "∆∆∆");
+    let _ = writeln!(msg, "#__WARDEN_END__#");
 
     Some(ApplyOutcome::ValidationFailure {
         errors: vec!["Roadmap rewrite converted to commands".to_string()],
@@ -154,14 +150,11 @@ fn handle_roadmap_rewrite(path: &str, incoming_content: &str) -> Option<ApplyOut
 
 fn validate_single_path(path: &str, errors: &mut Vec<String>) {
     if path.eq_ignore_ascii_case("ROADMAP.md") {
-        // Handled in main loop
         return;
     }
 
     if has_traversal(path) {
-        errors.push(format!(
-            "SECURITY: path contains directory traversal: {path}"
-        ));
+        errors.push(format!("SECURITY: path contains directory traversal: {path}"));
         return;
     }
 
