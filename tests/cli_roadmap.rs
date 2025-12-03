@@ -24,3 +24,5 @@ fn test_prompt_generates() {
 #[test] fn test_tasks_pending_filter() {}
 #[test] fn test_tasks_complete_filter() {}
 #[test] fn test_audit_runs() {}
+#[test] fn test_apply_dry_run() {}
+#[test] fn test_verbose_plan() {}

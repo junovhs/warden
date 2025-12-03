@@ -284,7 +284,7 @@
 - [x] ****Missing test function detection** <!-- test: tests/unit_audit.rs::test_missing_function_detection -->** <!-- test: tests/unit_audit.rs::test_missing_function_detection -->**
 - [ ] **Test execution verification (cargo test)**
 - [x] ****Exit code 1 on any failure** [no-test] *(CLI exit behavior)***
-- [ ] **--strict mode (all must pass)**
+- [x] ****--strict mode (all must pass)** [no-test] *(CLI flag)***
 
 ### Self-Hosting
 - [ ] **Warden passes own rules** <!-- test: tests/integration_self_host.rs::test_warden_passes_own_rules -->

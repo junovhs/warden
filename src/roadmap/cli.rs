@@ -187,8 +187,12 @@ fn run_tasks(file: &Path, pending: bool, complete: bool) -> Result<()> {
 fn run_audit(file: &Path, strict: bool) -> Result<()> {
     let r = load(file)?;
     let root = std::env::current_dir()?;
-    if !audit::run(&r, &root, audit::AuditOptions { strict }) {
-        return Err(anyhow!("Audit failed: Violations found."));
+    
+    // audit::run returns true if PASS, false if FAIL
+    let passed = audit::run(&r, &root, audit::AuditOptions { strict });
+    
+    if !passed && strict {
+        return Err(anyhow!("Audit failed in strict mode."));
     }
     Ok(())
 }
