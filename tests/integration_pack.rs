@@ -14,24 +14,27 @@ fn temp() -> TempDir {
 }
 
 #[test]
-fn test_nabla_delimiters_are_unique() {
-    // Verify ∇∇∇ and ∆∆∆ don't appear in normal code
+fn test_warden_delimiters_are_unique() {
+    // Verify #__WARDEN_*__# don't appear in normal code
     let code = "fn main() { let x = 1; }";
-    assert!(!code.contains("∇∇∇"));
-    assert!(!code.contains("∆∆∆"));
+    assert!(!code.contains("#__WARDEN_FILE__#"));
+    assert!(!code.contains("#__WARDEN_END__#"));
 }
 
 #[test]
-fn test_nabla_format_structure() {
+fn test_warden_format_structure() {
     let d = temp();
     std::env::set_current_dir(d.path()).unwrap();
-    let opts = PackOptions { prompt: false, ..Default::default() };
+    let opts = PackOptions {
+        prompt: false,
+        ..Default::default()
+    };
     let mut cfg = Config::new();
     cfg.load_local_config();
     let files = vec![d.path().join("src/main.rs")];
     let content = pack::generate_content(&files, &opts, &cfg).unwrap();
-    assert!(content.contains("∇∇∇"));
-    assert!(content.contains("∆∆∆"));
+    assert!(content.contains("#__WARDEN_FILE__#"));
+    assert!(content.contains("#__WARDEN_END__#"));
 }
 
 #[test]
@@ -51,11 +54,11 @@ fn test_prompt_includes_limits() {
 }
 
 #[test]
-fn test_prompt_includes_nabla_instructions() {
+fn test_prompt_includes_warden_instructions() {
     let cfg = Config::new();
     let gen = PromptGenerator::new(cfg.rules.clone());
     let prompt = gen.generate().unwrap();
-    assert!(prompt.contains("∇∇∇") || prompt.contains("Nabla") || prompt.contains("NABLA"));
+    assert!(prompt.contains("#__WARDEN_FILE__#") || prompt.contains("WARDEN"));
 }
 
 #[test]
@@ -71,7 +74,11 @@ fn test_reminder_is_concise() {
 fn test_pack_skeleton_integration() {
     let d = temp();
     std::env::set_current_dir(d.path()).unwrap();
-    let opts = PackOptions { skeleton: true, prompt: false, ..Default::default() };
+    let opts = PackOptions {
+        skeleton: true,
+        prompt: false,
+        ..Default::default()
+    };
     let mut cfg = Config::new();
     cfg.load_local_config();
     let files = vec![d.path().join("src/main.rs")];
