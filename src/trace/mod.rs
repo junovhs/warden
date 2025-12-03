@@ -6,5 +6,4 @@ mod output;
 mod runner;
 
 pub use options::TraceOptions;
-pub use runner::{quick_map, run, TraceResult};
-
+pub use runner::{map, run, TraceResult};

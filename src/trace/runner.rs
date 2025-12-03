@@ -6,14 +6,13 @@ use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 use super::options::TraceOptions;
 use super::output;
 use crate::config::Config;
 use crate::discovery;
 use crate::graph::rank::RepoGraph;
-use crate::tokens::Tokenizer;
 
 /// Result of tracing dependencies.
 pub struct TraceResult {
@@ -28,40 +27,49 @@ pub struct TraceResult {
 ///
 /// # Errors
 /// Returns error if anchor doesn't exist or file operations fail.
-pub fn run(options: &TraceOptions) -> Result<TraceResult> {
-    if !options.anchor.exists() {
-        anyhow::bail!("Anchor file not found: {}", options.anchor.display());
+pub fn run(opts: &TraceOptions) -> Result<String> {
+    if !opts.anchor.exists() {
+        anyhow::bail!("Anchor file not found: {}", opts.anchor.display());
     }
 
-    println!("🔍 Tracing from {}...", options.anchor.display());
-
-    let config = Config::new();
+    let config = load_config();
     let files = discovery::discover(&config)?;
     let contents = read_all_files(&files);
+
     let file_vec: Vec<_> = contents
         .iter()
         .map(|(p, c)| (p.clone(), c.clone()))
         .collect();
 
     let mut graph = RepoGraph::build(&file_vec);
-    graph.focus_on(&options.anchor);
+    graph.focus_on(&opts.anchor);
 
-    let direct = graph.neighbors(&options.anchor);
-    let indirect = collect_indirect(&graph, &options.anchor, &direct);
+    let direct = graph.neighbors(&opts.anchor);
+    let indirect = collect_indirect(&graph, &opts.anchor, &direct);
 
-    let output_text = output::render(&options.anchor, &direct, &indirect, &contents);
-    let tokens = Tokenizer::count(&output_text);
+    Ok(output::render(&opts.anchor, &direct, &indirect, &contents))
+}
 
-    write_output(&output_text, options)?;
-    print_summary(&direct, &indirect, tokens);
+/// Shows repository structure map.
+///
+/// # Errors
+/// Returns error if discovery fails.
+pub fn map() -> Result<String> {
+    let config = load_config();
+    let files = discovery::discover(&config)?;
 
-    Ok(TraceResult {
-        anchor: options.anchor.clone(),
-        direct,
-        indirect,
-        output: output_text,
-        tokens,
-    })
+    let mut out = String::from("# Repository Map\n\n");
+    for (dir, dir_files) in &group_by_directory(&files) {
+        write_dir_section(&mut out, dir, dir_files);
+    }
+
+    Ok(out)
+}
+
+fn load_config() -> Config {
+    let mut config = Config::new();
+    config.load_local_config();
+    config
 }
 
 fn read_all_files(files: &[PathBuf]) -> HashMap<PathBuf, String> {
@@ -81,38 +89,6 @@ fn collect_indirect(graph: &RepoGraph, anchor: &Path, direct: &[PathBuf]) -> Vec
         .collect()
 }
 
-fn write_output(content: &str, options: &TraceOptions) -> Result<()> {
-    if options.stdout {
-        println!("{content}");
-    } else {
-        let path = PathBuf::from("trace_context.txt");
-        fs::write(&path, content).context("Failed to write trace output")?;
-        println!("📦 Trace written to {}", path.display());
-    }
-    Ok(())
-}
-
-fn print_summary(direct: &[PathBuf], indirect: &[PathBuf], tokens: usize) {
-    let total = 1 + direct.len() + indirect.len();
-    println!("   {total} files, {tokens} tokens");
-}
-
-/// Quick map - shows just the file tree.
-///
-/// # Errors
-/// Returns error if discovery fails.
-pub fn quick_map(config: &Config) -> Result<String> {
-    let files = discovery::discover(config)?;
-    let mut output = String::from("# Repository Map\n\n");
-
-    let dirs = group_by_directory(&files);
-    for (dir, dir_files) in &dirs {
-        write_dir_section(&mut output, dir, dir_files);
-    }
-
-    Ok(output)
-}
-
 fn group_by_directory(files: &[PathBuf]) -> BTreeMap<PathBuf, Vec<PathBuf>> {
     let mut dirs: BTreeMap<PathBuf, Vec<PathBuf>> = BTreeMap::new();
     for file in files {
@@ -124,13 +100,12 @@ fn group_by_directory(files: &[PathBuf]) -> BTreeMap<PathBuf, Vec<PathBuf>> {
 
 fn write_dir_section(out: &mut String, dir: &Path, files: &[PathBuf]) {
     let _ = writeln!(out, "{}/ ({} files)", dir.display(), files.len());
-
     for f in files.iter().take(5) {
         let name = f.file_name().unwrap_or_default().to_string_lossy();
         let _ = writeln!(out, "  └── {name}");
     }
-
     if files.len() > 5 {
         let _ = writeln!(out, "  └── ... and {} more", files.len() - 5);
     }
 }
+

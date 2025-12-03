@@ -8,22 +8,19 @@ use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
 use warden_core::analysis::RuleEngine;
-use warden_core::apply;
-use warden_core::apply::types::ApplyContext;
+use warden_core::apply::{self, types::ApplyContext};
 use warden_core::config::Config;
 use warden_core::discovery;
 use warden_core::pack::{self, OutputFormat, PackOptions};
 use warden_core::prompt::PromptGenerator;
 use warden_core::reporting;
 use warden_core::roadmap::cli::{handle_command, RoadmapCommand};
+use warden_core::trace::{self, TraceOptions};
 use warden_core::tui::state::App;
-use warden_core::types::ScanReport;
 use warden_core::wizard;
 
 #[derive(Parser)]
-#[command(name = "warden")]
-#[command(version)]
-#[command(about = "Code quality guardian", long_about = None)]
+#[command(name = "warden", version, about = "Code quality guardian")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -71,6 +68,15 @@ enum Commands {
         #[arg(value_name = "TARGET")]
         target: Option<PathBuf>,
     },
+    Trace {
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+        #[arg(long, short, default_value = "2")]
+        depth: usize,
+        #[arg(long, short, default_value = "4000")]
+        budget: usize,
+    },
+    Map,
 }
 
 fn main() {
@@ -82,40 +88,51 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
-
     if cli.init {
         return wizard::run();
     }
-
     ensure_config_exists();
-    dispatch_command(&cli)
+    dispatch(&cli)
 }
 
-fn dispatch_command(cli: &Cli) -> Result<()> {
+fn dispatch(cli: &Cli) -> Result<()> {
     match &cli.command {
-        Some(cmd) => dispatch_subcommand(cmd),
-        None => dispatch_default(cli.ui),
+        Some(Commands::Check) => {
+            run_pipeline("check");
+            Ok(())
+        }
+        Some(Commands::Fix) => {
+            run_pipeline("fix");
+            Ok(())
+        }
+        Some(Commands::Config) => warden_core::tui::run_config(),
+        Some(Commands::Apply) => handle_apply(),
+        Some(Commands::Map) => {
+            println!("{}", trace::map()?);
+            Ok(())
+        }
+        Some(Commands::Prompt { copy }) => handle_prompt(*copy),
+        Some(Commands::Clean { commit }) => warden_core::clean::run(*commit),
+        Some(Commands::Roadmap(sub)) => handle_command(sub.clone()),
+        Some(cmd @ Commands::Pack { .. }) => handle_pack(cmd),
+        Some(Commands::Trace {
+            file,
+            depth,
+            budget,
+        }) => handle_trace(file, *depth, *budget),
+        None if cli.ui => run_tui(),
+        None => run_scan(),
     }
 }
 
-fn dispatch_subcommand(cmd: &Commands) -> Result<()> {
-    match cmd {
-        Commands::Check => run_command("check"),
-        Commands::Fix => run_command("fix"),
-        Commands::Config => warden_core::tui::run_config(),
-        Commands::Apply => handle_apply(),
-        _ => dispatch_with_args(cmd),
-    }
-}
-
-fn dispatch_with_args(cmd: &Commands) -> Result<()> {
-    match cmd {
-        Commands::Prompt { copy } => handle_prompt(*copy),
-        Commands::Clean { commit } => warden_core::clean::run(*commit),
-        Commands::Roadmap(sub) => handle_command(sub.clone()),
-        Commands::Pack { .. } => handle_pack(cmd),
-        _ => Ok(()),
-    }
+fn handle_trace(file: &Path, depth: usize, budget: usize) -> Result<()> {
+    let opts = TraceOptions {
+        anchor: file.to_path_buf(),
+        depth,
+        budget,
+    };
+    println!("{}", trace::run(&opts)?);
+    Ok(())
 }
 
 fn handle_pack(cmd: &Commands) -> Result<()> {
@@ -134,7 +151,6 @@ fn handle_pack(cmd: &Commands) -> Result<()> {
     else {
         return Ok(());
     };
-
     pack::run(&PackOptions {
         stdout: *stdout,
         copy: *copy,
@@ -149,19 +165,10 @@ fn handle_pack(cmd: &Commands) -> Result<()> {
     })
 }
 
-fn dispatch_default(ui: bool) -> Result<()> {
-    if ui {
-        run_tui()
-    } else {
-        run_scan()
-    }
-}
-
 fn handle_apply() -> Result<()> {
     let mut config = Config::new();
     config.load_local_config();
-    let ctx = ApplyContext::new(&config);
-    let outcome = apply::run_apply(&ctx)?;
+    let outcome = apply::run_apply(&ApplyContext::new(&config))?;
     apply::print_result(&outcome);
     Ok(())
 }
@@ -181,8 +188,7 @@ fn ensure_config_exists() {
 fn handle_prompt(copy: bool) -> Result<()> {
     let mut config = Config::new();
     config.load_local_config();
-    let gen = PromptGenerator::new(config.rules.clone());
-    let prompt = gen.generate()?;
+    let prompt = PromptGenerator::new(config.rules.clone()).generate()?;
     if copy {
         warden_core::clipboard::copy_to_clipboard(&prompt)?;
         println!("{}", "✓ Copied to clipboard".green());
@@ -192,61 +198,43 @@ fn handle_prompt(copy: bool) -> Result<()> {
     Ok(())
 }
 
-fn run_command(name: &str) -> Result<()> {
+fn run_pipeline(name: &str) {
     let mut config = Config::new();
     config.load_local_config();
-
     let Some(commands) = config.commands.get(name) else {
-        eprintln!(
-            "{} No '{}' command configured in warden.toml",
-            "error:".red(),
-            name
-        );
+        eprintln!("{} No '{}' command configured", "error:".red(), name);
         process::exit(1);
     };
-
     println!("{} Running '{}' pipeline...", "🚀".green(), name);
-    execute_command_list(commands)
-}
-
-fn execute_command_list(commands: &[String]) -> Result<()> {
-    for cmd_str in commands {
-        execute_single_command(cmd_str)?;
+    for cmd in commands {
+        exec_cmd(cmd);
     }
-    Ok(())
 }
 
-fn execute_single_command(cmd_str: &str) -> Result<()> {
-    println!("   {} {}", "exec:".dimmed(), cmd_str.dimmed());
-    let parts: Vec<&str> = cmd_str.split_whitespace().collect();
+fn exec_cmd(cmd: &str) {
+    println!("   {} {}", "exec:".dimmed(), cmd.dimmed());
+    let parts: Vec<&str> = cmd.split_whitespace().collect();
     let (prog, args) = parts.split_first().unwrap_or((&"", &[]));
-
     match Command::new(prog).args(args).status() {
-        Ok(s) if s.success() => Ok(()),
-        Ok(s) => exit_with_failure(s.code().unwrap_or(1)),
-        Err(e) => exit_with_exec_error(&e, prog),
+        Ok(s) if s.success() => {}
+        Ok(s) => {
+            eprintln!("{} Exit code {}", "❌".red(), s.code().unwrap_or(1));
+            process::exit(s.code().unwrap_or(1));
+        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            eprintln!("{} Not found: {prog}", "error:".red());
+            process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("{} {e}", "error:".red());
+            process::exit(1);
+        }
     }
-}
-
-fn exit_with_failure(code: i32) -> Result<()> {
-    eprintln!("{} Command failed with exit code {code}", "❌".red());
-    process::exit(code);
-}
-
-fn exit_with_exec_error(e: &io::Error, prog: &str) -> Result<()> {
-    if e.kind() == io::ErrorKind::NotFound {
-        eprintln!("{} Command not found: {prog}", "error:".red());
-        eprintln!("  Check that the program is installed and in PATH");
-    } else {
-        eprintln!("{} Failed to execute: {e}", "error:".red());
-    }
-    process::exit(1);
 }
 
 fn run_scan() -> Result<()> {
     let config = load_config();
-    let files = discovery::discover(&config)?;
-    let report = scan_files(&config, files);
+    let report = RuleEngine::new(config.clone()).scan(discovery::discover(&config)?);
     reporting::print_report(&report)?;
     if report.has_errors() {
         process::exit(1);
@@ -255,46 +243,32 @@ fn run_scan() -> Result<()> {
 }
 
 fn run_tui() -> Result<()> {
-    let config = load_config();
-    let files = discovery::discover(&config)?;
-    let report = scan_files(&config, files);
-    run_tui_with_report(report)
-}
-
-fn load_config() -> Config {
-    let mut config = Config::new();
-    config.load_local_config();
-    config
-}
-
-fn scan_files(config: &Config, files: Vec<PathBuf>) -> ScanReport {
-    RuleEngine::new(config.clone()).scan(files)
-}
-
-fn run_tui_with_report(report: ScanReport) -> Result<()> {
-    use crossterm::{
-        event::{DisableMouseCapture, EnableMouseCapture},
-        execute,
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+    use crossterm::execute;
+    use crossterm::terminal::{
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
     };
     use ratatui::backend::CrosstermBackend;
     use ratatui::Terminal;
-
+    let config = load_config();
+    let report = RuleEngine::new(config.clone()).scan(discovery::discover(&config)?);
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let mut app = App::new(report);
-    let res = app.run(&mut terminal);
-
+    let mut term = Terminal::new(CrosstermBackend::new(stdout))?;
+    let res = App::new(report).run(&mut term);
     disable_raw_mode()?;
     execute!(
-        terminal.backend_mut(),
+        term.backend_mut(),
         LeaveAlternateScreen,
         DisableMouseCapture
     )?;
-    terminal.show_cursor()?;
+    term.show_cursor()?;
     res
+}
+
+fn load_config() -> Config {
+    let mut c = Config::new();
+    c.load_local_config();
+    c
 }
