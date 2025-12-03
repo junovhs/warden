@@ -291,7 +291,7 @@
 
 ### Test Naming Convention
 - [ ] **Feature ID → test function mapping**
-- [ ] **Audit validates naming convention**
+- [x] ****Audit validates naming convention** <!-- test: tests/unit_audit.rs::test_naming_convention_mismatch -->**
 
 ### Roadmap Hardening
 - [ ] **SECTION command (create version headers)** <!-- test: tests/unit_roadmap_cmd.rs::test_section_command -->

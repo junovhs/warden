@@ -23,6 +23,7 @@ pub struct AuditViolation {
 pub enum ViolationReason {
     MissingTestFile(String),
     MissingTestFunction { file: String, function: String },
+    NamingConventionMismatch { expected: String, actual: String },
     NoTraceability, // Heuristic failed
 }
 
@@ -62,7 +63,7 @@ pub fn run(roadmap: &Roadmap, root: &Path, opts: AuditOptions) -> bool {
 }
 
 #[must_use]
-pub fn scan(roadmap: &Roadmap, root: &Path, _opts: &AuditOptions) -> AuditReport {
+pub fn scan(roadmap: &Roadmap, root: &Path, opts: &AuditOptions) -> AuditReport {
     let tasks = roadmap.all_tasks();
     let completed: Vec<&&Task> = tasks
         .iter()
@@ -77,18 +78,14 @@ pub fn scan(roadmap: &Roadmap, root: &Path, _opts: &AuditOptions) -> AuditReport
     let scanned_test_files = scan_test_files(root);
     let mut report = AuditReport::new();
     
-    // Logic Fix: Don't pre-set total_checked. Count only non-skipped tasks.
-    // report.total_checked = completed.len(); 
-
     for task in completed {
-        // Skip if marked as [no-test]
         if task.text.contains("[no-test]") {
             continue;
         }
         
         report.total_checked += 1;
 
-        if let Some(reason) = check_task(task, root, &scanned_test_files) {
+        if let Some(reason) = check_task(task, root, &scanned_test_files, opts.strict) {
             report.violations.push(AuditViolation {
                 task_id: task.id.clone(),
                 task_text: task.text.clone(),
@@ -100,12 +97,18 @@ pub fn scan(roadmap: &Roadmap, root: &Path, _opts: &AuditOptions) -> AuditReport
     report
 }
 
-fn check_task(task: &Task, root: &Path, scanned_files: &[String]) -> Option<ViolationReason> {
+fn check_task(task: &Task, root: &Path, scanned_files: &[String], strict: bool) -> Option<ViolationReason> {
     // 1. Priority: Explicit Anchors
     if !task.tests.is_empty() {
         for test_ref in &task.tests {
             if let Some(reason) = verify_anchor(test_ref, root) {
                 return Some(reason);
+            }
+            // Strict Mode: Check naming convention
+            if strict {
+                if let Some(reason) = check_naming_convention(task, test_ref) {
+                    return Some(reason);
+                }
             }
         }
         return None;
@@ -126,8 +129,21 @@ fn check_task(task: &Task, root: &Path, scanned_files: &[String]) -> Option<Viol
     }
 }
 
+fn check_naming_convention(task: &Task, anchor: &str) -> Option<ViolationReason> {
+    let func_name = anchor.split("::").nth(1)?;
+    let clean_func = func_name.trim().replace("test_", "");
+    let clean_id = task.id.replace('-', "_");
+
+    if clean_func != clean_id {
+        return Some(ViolationReason::NamingConventionMismatch {
+            expected: format!("test_{clean_id}"),
+            actual: func_name.to_string(),
+        });
+    }
+    None
+}
+
 fn verify_anchor(anchor: &str, root: &Path) -> Option<ViolationReason> {
-    // Support "path/to/file.rs::function_name" syntax
     let (file_part, fn_part) = if let Some((f, n)) = anchor.split_once("::") {
         (f, Some(n))
     } else {
@@ -140,7 +156,6 @@ fn verify_anchor(anchor: &str, root: &Path) -> Option<ViolationReason> {
         return Some(ViolationReason::MissingTestFile(file_part.trim().to_string()));
     }
 
-    // If function name is specified, verify it exists in the file content
     if let Some(func_name) = fn_part {
         let name = func_name.trim();
         if let Ok(content) = fs::read_to_string(&path) {
@@ -164,7 +179,6 @@ fn check_definition(path: &Path, content: &str, name: &str) -> bool {
         return content.contains(name);
     };
 
-    // Iterate matches and check if line is commented
     for m in re.find_iter(content) {
         if !is_match_commented(content, m.start(), ext) {
             return true;
@@ -180,10 +194,9 @@ fn build_definition_pattern(ext: &str, name: &str) -> String {
         "py" => format!(r"def\s+{name}\b"),
         "go" => format!(r"func\s+{name}\b"),
         "js" | "ts" | "jsx" | "tsx" => {
-            // JS/TS is flexible: function foo, const foo =, foo: function
             format!(r"(function\s+{name}\b|const\s+{name}\s*=|let\s+{name}\s*=|var\s+{name}\s*=|{name}\s*[:\(])")
         }
-        _ => name.to_string(), // Fallback (used as regex pattern if simple)
+        _ => name.to_string(),
     }
 }
 
@@ -202,6 +215,9 @@ fn print_violation(v: &AuditViolation) {
         ViolationReason::MissingTestFile(f) => format!("Missing File: {f}"),
         ViolationReason::MissingTestFunction { file, function } => {
             format!("Missing Function: '{function}' in {file}")
+        }
+        ViolationReason::NamingConventionMismatch { expected, actual } => {
+            format!("Naming Mismatch: expected '{expected}', found '{actual}'")
         }
         ViolationReason::NoTraceability => "No test file found (heuristic)".to_string(),
     };
@@ -244,8 +260,6 @@ fn is_ignored_dir(entry: &DirEntry) -> bool {
     name.starts_with('.') || name == "target" || name == "node_modules" || name == "vendor"
 }
 
-/// Strict filter for the heuristic scanner.
-/// Only picks up files that explicitly look like tests.
 fn is_heuristic_match(entry: &DirEntry) -> bool {
     if !entry.file_type().is_file() {
         return false;

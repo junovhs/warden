@@ -18,10 +18,6 @@ fn make_task(id: &str, tests: Vec<String>) -> Task {
 }
 
 fn make_roadmap(tasks: Vec<Task>) -> Roadmap {
-    // For unit tests we just need the tasks
-    // In a real scenario we'd build the full tree, but scan() uses all_tasks()
-    // Since we can't easily inject into all_tasks() without building Sections,
-    // we have to build a Section.
     use warden_core::roadmap::types::Section;
     
     let section = Section {
@@ -67,7 +63,6 @@ fn test_missing_function_detection() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     
-    // Create the file but NOT the function
     let file_path = root.join("tests/my_test.rs");
     fs::create_dir_all(file_path.parent().unwrap()).unwrap();
     fs::write(&file_path, "fn other_function() {}").unwrap();
@@ -95,9 +90,10 @@ fn test_successful_verification() {
     
     let file_path = root.join("tests/valid_test.rs");
     fs::create_dir_all(file_path.parent().unwrap()).unwrap();
-    fs::write(&file_path, "fn my_cool_test() {}").unwrap();
+    fs::write(&file_path, "fn test_my_cool_test() {}").unwrap();
     
-    let task = make_task("t3", vec!["tests/valid_test.rs::my_cool_test".into()]);
+    // Task ID "my-cool-test" matches function "test_my_cool_test"
+    let task = make_task("my-cool-test", vec!["tests/valid_test.rs::test_my_cool_test".into()]);
     let roadmap = make_roadmap(vec![task]);
     let opts = AuditOptions { strict: true };
 
@@ -105,4 +101,30 @@ fn test_successful_verification() {
     
     assert_eq!(report.violations.len(), 0);
     assert_eq!(report.total_checked, 1);
+}
+
+#[test]
+fn test_naming_convention_mismatch() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    
+    let file_path = root.join("tests/naming.rs");
+    fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+    fs::write(&file_path, "fn test_wrong_name() {}").unwrap();
+    
+    // Task ID "my-feature" vs "test_wrong_name"
+    let task = make_task("my-feature", vec!["tests/naming.rs::test_wrong_name".into()]);
+    let roadmap = make_roadmap(vec![task]);
+    let opts = AuditOptions { strict: true };
+
+    let report = scan(&roadmap, root, &opts);
+    
+    assert_eq!(report.violations.len(), 1);
+    match &report.violations[0].reason {
+        ViolationReason::NamingConventionMismatch { expected, actual } => {
+            assert_eq!(expected, "test_my_feature");
+            assert_eq!(actual, "test_wrong_name");
+        }
+        _ => panic!("Expected naming mismatch violation"),
+    }
 }

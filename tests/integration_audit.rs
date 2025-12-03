@@ -38,12 +38,20 @@ fn test_explicit_anchor_verified() -> Result<()> {
     // Create the test file
     let test_file = root.join("tests/feature.rs");
     fs::create_dir_all(test_file.parent().unwrap())?;
-    fs::write(&test_file, "fn test_my_feature() {}")?;
     
-    let task_text = "Feature <!-- test: tests/feature.rs::test_my_feature -->";
+    // Use a function name that matches the feature slug "feature" -> "test_feature"
+    // to satisfy strict naming conventions
+    fs::write(&test_file, "fn test_feature() {}")?;
+    
+    let task_text = "Feature <!-- test: tests/feature.rs::test_feature -->";
     let r = make_roadmap_with_task(task_text);
     
     let report = scan(&r, root, &AuditOptions { strict: true });
+    
+    if !report.violations.is_empty() {
+        println!("Violations found: {:?}", report.violations);
+    }
+    
     assert!(report.violations.is_empty(), "Should pass verification");
     assert_eq!(report.total_checked, 1);
     Ok(())
