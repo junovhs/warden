@@ -59,7 +59,14 @@ pub fn map() -> Result<String> {
     let files = discovery::discover(&config)?;
 
     let mut out = String::from("# Repository Map\n\n");
-    for (dir, dir_files) in &group_by_directory(&files) {
+    let mut dirs = group_by_directory(&files);
+
+    // Sort files within each directory for deterministic output
+    for files in dirs.values_mut() {
+        files.sort();
+    }
+
+    for (dir, dir_files) in &dirs {
         write_dir_section(&mut out, dir, dir_files);
     }
 
@@ -100,12 +107,8 @@ fn group_by_directory(files: &[PathBuf]) -> BTreeMap<PathBuf, Vec<PathBuf>> {
 
 fn write_dir_section(out: &mut String, dir: &Path, files: &[PathBuf]) {
     let _ = writeln!(out, "{}/ ({} files)", dir.display(), files.len());
-    for f in files.iter().take(5) {
+    for f in files {
         let name = f.file_name().unwrap_or_default().to_string_lossy();
         let _ = writeln!(out, "  └── {name}");
     }
-    if files.len() > 5 {
-        let _ = writeln!(out, "  └── ... and {} more", files.len() - 5);
-    }
 }
-
