@@ -1,138 +1,114 @@
 # SlopChop
 
-**Bring rigor to your conversations with AI.**
-
-SlopChop is a command-line tool designed for developers who love the conversational workflow of AI (ChatGPT, Claude, DeepSeek) but hate the friction of moving code back and forth.
-
-It doesn't try to replace the Chat UI with a headless agent. It respects that **chatting is thinking**. The back-and-forth is where the architecture happens.
-
-The problem isn't the conversation; it's the **delivery**.
-- You paste code, and it breaks because of bad Markdown escaping.
-- The AI writes a 300-line "God Function" that works but ruins your architecture.
-- The AI gets lazy and gives you `// ... rest of implementation`.
-- You lose track of what you've actually finished vs. what you just talked about.
-
-**SlopChop bridges the gap between the chat window and your compiler.** It ensures that when you decide to apply the AI's advice, it is **Deterministic**, **Atomic**, and **Safe**.
+**AI writes slop. You chop it clean.**
 
 ---
 
-## The Philosophy: Chat-Driven Development
+## The Story
 
-We believe that **slowing down** to articulate your problem to an AI is a feature, not a bug. It forces you to think. But once the thinking is done, the *doing* should be instant and error-free.
+I'm a product designer, not a developer. I built this entire tool by chatting with AI. Every line of Rust came from Claude and ChatGPT.
 
-SlopChop acts as a **Gatekeeper**.
+How? By enforcing rules that keep AI output clean. Small files. Simple functions. No lazy truncation. The AI learns through rejection.
 
-1. **Pack** your context (smartly filtered) to the clipboard.
-2. **Converse** with the AI in your browser.
-3. **Apply** the result via a rigorous protocol.
-
-If the AI produces garbage, SlopChop rejects it and tells the AI *exactly why*.
+This tool is the proof. It passes its own rules. It was built by the workflow it enables.
 
 ---
 
-## How SlopChop Changes the Game
+## What Is This?
 
-### 1. The Protocol (Certainty in Transport)
-Markdown code blocks (` ```rust `) are fragile. AIs mess them up constantly.
+SlopChop is the bridge between your AI chat and your codebase.
 
-SlopChop teaches the AI a specific, delimiter-based protocol (`#__SLOPCHOP_FILE__#`). When you run `slopchop apply`, it doesn't just regex-match text; it parses a structured manifest.
+You love coding with ChatGPT and Claude. The conversation is where the thinking happens. But the last mile sucks:
 
-**Result:** No more copy-paste errors. No more "files ending in the middle." If the protocol is valid, the file lands.
+- Copy code, miss a bracket, broken file
+- AI gives you `// rest of implementation`, deletes your code
+- 300-line god function you didn't ask for
+- Context window forgets everything between sessions
 
-### 2. The Three Laws (Enforced Modularity)
-AIs love to write spaghetti code. They don't have to maintain it—you do. SlopChop enforces architectural discipline at the gate.
-
-If an AI tries to give you a complex function:
-> **SlopChop:** "Error: Function `process_data` has a Cyclomatic Complexity of 12 (Max: 8). Refactor."
-
-You paste that error back to the chat. The AI apologizes and breaks the function into three smaller, testable helpers.
-
-**Result:** You don't just get working code; you get **clean, atomic code**.
-
-### 3. The Anti-Lazy Defense (No Truncation)
-We've all seen it:
-```rust
-fn complicated_logic() {
-    // ... existing logic ... // slopchop:ignore
-    new_logic();
-}
-```
-If you paste this, you delete your source code.
-
-SlopChop detects these "lazy markers" (comments, placeholders, ellipses) and **rejects the file immediately**, forcing the AI to provide the complete, compile-ready source.
-
-### 4. Shared Memory (The Roadmap)
-Chats are ephemeral. Context windows forget.
-
-SlopChop maintains a `ROADMAP.md` that serves as the project's long-term memory. The AI can read it to know where we are, and issue commands to update it:
-
-```
-===ROADMAP===
-CHECK "auth-login"
-ADD "auth-logout" AFTER "auth-login"
-===ROADMAP===
-```
-
-**Result:** One paste updates your code **and** your project status.
-
-### 5. Smart Context (Dependency-Aware Packing)
-Not all files are equal. SlopChop understands your codebase's structure.
-
-```bash
-slopchop trace src/apply/mod.rs --depth 2
-```
-
-SlopChop walks the import graph, packs your anchor file in full, and includes dependencies as skeletons—optimizing the AI's context window.
+SlopChop fixes all of this.
 
 ---
 
-## A Typical Session
+## The Workflow
 
-**You:** "I need to fix the login bug. Let's look at the auth module."
-```bash
-slopchop pack src/auth/
-# Context is now on your clipboard.
+```
+You: "Fix the auth bug"
+
+    slopchop pack src/auth/
+    [context copied to clipboard]
+
+You: [paste to Claude] "Here's the code. The login fails when..."
+
+Claude: [responds with code in SlopChop format]
+
+You: [copy response]
+
+    slopchop apply
+    
+    ✓ 3 files written
+    ✓ tests passed  
+    ✓ committed
 ```
 
-**You (in ChatGPT):** [Paste Context] "The login handler is failing when..."
+If the AI gives you slop:
 
-**AI:** "I see the issue. Here is the fix."
-*[AI outputs a SlopChop Protocol block]*
-
-**You:** [Copy Response]
-```bash
-slopchop apply
+```
+    slopchop apply
+    
+    ✗ REJECTED
+    - src/auth/login.rs: complexity 12 (max 8)
+    - src/auth/login.rs: detected "// ..." truncation
+    
+    [error copied to clipboard]
 ```
 
-**SlopChop:**
-```text
-❌ Validation Failed
-- src/auth/login.rs: High Complexity: Score is 10 (Max: 8).
-- src/auth/login.rs: Detected lazy truncation marker: '// ...'.
+Paste the error back. AI apologizes. Fixes it. Resubmit.
+
+**The AI learns your standards through rejection, not instruction.**
+
+---
+
+## The Killer Feature: Watch Mode
+
 ```
-*[SlopChop copies this error report to your clipboard]*
-
-**You (in ChatGPT):** [Paste Error]
-
-**AI:** "Apologies. I will refactor to reduce complexity and provide the full file."
-*[AI outputs corrected code]*
-
-**You:** [Copy Response]
-```bash
-slopchop apply
+slopchop watch
 ```
 
-**SlopChop:**
-```text
-✅ Apply successful!
-   ✓ src/auth/login.rs
-   ✓ src/auth/helpers.rs [NEW]
-   
-running tests... passed.
-git committing... done.
+Runs in background. Watches your clipboard.
+
+1. You copy from Claude
+2. Notification: "3 files ready. ⌘⇧L to land"
+3. Press hotkey
+4. Done. Never left the browser.
+
+---
+
+## The Three Laws
+
+SlopChop enforces structural constraints. These are what keep AI code from becoming spaghetti.
+
+### Law of Atomicity
+Files must be small enough to review.
+```
+max_file_tokens = 2000  (~500 lines)
 ```
 
-You just refactored a module without writing a line of code, and you have **certainty** that it meets your quality standards.
+### Law of Complexity
+Functions must be simple enough to test.
+```
+max_cyclomatic_complexity = 8
+max_nesting_depth = 3
+max_function_args = 5
+```
+
+### Law of Paranoia (Rust)
+No hidden crash paths.
+```
+.unwrap()  → rejected
+.expect()  → rejected
+.unwrap_or() → allowed
+?          → allowed
+```
 
 ---
 
@@ -142,17 +118,13 @@ You just refactored a module without writing a line of code, and you have **cert
 cargo install --path .
 ```
 
-(Requires Rust toolchain. Supports Linux, macOS, and Windows via WSL.)
-
-### Quick Start
+Then:
 
 ```bash
-# Initialize configuration (interactive wizard)
-slopchop --init
-
-# Or let SlopChop auto-detect and create slopchop.toml
-slopchop
+slopchop --init    # interactive setup
 ```
+
+Or just run `slopchop` and it auto-generates config.
 
 ---
 
@@ -160,213 +132,146 @@ slopchop
 
 ### Core Workflow
 
-| Command | Description |
-|---------|-------------|
+| Command | What it does |
+|---------|--------------|
 | `slopchop` | Scan codebase for violations |
-| `slopchop --ui` | Interactive TUI dashboard |
-| `slopchop pack [options]` | Pack context for AI consumption |
+| `slopchop pack [path]` | Generate context for AI |
 | `slopchop apply` | Apply AI response from clipboard |
-| `slopchop check` | Run configured check commands |
-| `slopchop fix` | Run configured fix commands |
+| `slopchop watch` | Background daemon with hotkey |
 
-### Smart Context
+### Context Tools
 
-| Command | Description |
-|---------|-------------|
-| `slopchop trace <FILE>` | Trace dependencies from anchor file |
-| `slopchop map [--deps]` | Show repository structure map |
-| `slopchop context [--copy]` | Generate context map |
-| `slopchop prompt [--copy]` | Generate system prompt |
+| Command | What it does |
+|---------|--------------|
+| `slopchop trace <file>` | Pack file + its dependencies |
+| `slopchop map` | Show codebase structure |
+| `slopchop prompt` | Generate system prompt |
 
-### Configuration & Maintenance
+### Project Management
 
-| Command | Description |
-|---------|-------------|
-| `slopchop --init` | Interactive configuration wizard |
-| `slopchop config` | TUI configuration editor |
-| `slopchop clean [--commit]` | Clean backup files |
-
-### Roadmap Management
-
-| Command | Description |
-|---------|-------------|
-| `slopchop roadmap show` | Display roadmap tree |
-| `slopchop roadmap tasks` | List all tasks |
-| `slopchop roadmap apply` | Apply roadmap commands |
+| Command | What it does |
+|---------|--------------|
+| `slopchop roadmap show` | Display progress |
+| `slopchop roadmap apply` | Update roadmap from AI |
 | `slopchop roadmap audit` | Verify test coverage |
-| `slopchop roadmap prompt` | Generate roadmap prompt |
 
 ---
 
-## Pack Options
+## Configuration
 
-```bash
-slopchop pack [OPTIONS]
-
-Options:
-  -s, --stdout         Output to stdout instead of file
-  -c, --copy           Copy to clipboard
-      --noprompt       Exclude system prompt header
-      --format <FMT>   Output format: text, json (default: text)
-      --skeleton       Skeletonize all files (signatures only)
-      --git-only       Only include git-tracked files
-      --no-git         Include all files regardless of git
-      --code-only      Exclude markdown and config files
-  -v, --verbose        Show progress
-      --target <FILE>  Focus on specific file (full content)
-  -f, --focus <FILE>   Additional focus files
-      --depth <N>      Dependency trace depth (default: 1)
-```
-
-### Focus Mode
-
-```bash
-# Target file in full, everything else skeletonized
-slopchop pack --target src/apply/mod.rs
-
-# Multiple focus files
-slopchop pack --focus src/apply/mod.rs --focus src/types.rs
-```
-
----
-
-## Trace Command
-
-```bash
-slopchop trace <FILE> [OPTIONS]
-
-Options:
-  -d, --depth <N>    Dependency depth (default: 2)
-  -b, --budget <N>   Token budget (default: 4000)
-```
-
-Traces dependencies from an anchor file, generating optimized context:
-- **Anchor**: Full content
-- **Direct dependencies**: Skeletonized
-- **Indirect dependencies**: Skeletonized
-
----
-
-## Configuration (`slopchop.toml`)
-
-SlopChop is opinionated, but you can negotiate.
+`slopchop.toml`:
 
 ```toml
 [rules]
-max_file_tokens = 2000              # Keep files small
-max_cyclomatic_complexity = 8       # Keep logic simple
-max_nesting_depth = 3               # Keep indentation flat
-max_function_args = 5               # Keep interfaces clean
-max_function_words = 5              # Keep names focused
-ignore_tokens_on = [".lock", ".md"] # Skip token checks
-ignore_naming_on = ["tests"]        # Skip naming checks
+max_file_tokens = 2000
+max_cyclomatic_complexity = 8
+max_nesting_depth = 3
+max_function_args = 5
 
 [commands]
-# SlopChop runs these before committing. If they fail, the apply is rejected.
-check = ["cargo test", "cargo clippy --all-targets -- -D warnings"]
+check = ["cargo test", "cargo clippy -- -D warnings"]
 fix = "cargo fmt"
 ```
 
 ---
 
-## The Protocol Format
+## The Format
 
-AI outputs follow this structure:
+AI outputs code in this format:
 
 ```
-#__SLOPCHOP_PLAN__#
-GOAL: What you're doing
-CHANGES:
-1. First change
-2. Second change
-#__SLOPCHOP_END__#
-
-#__SLOPCHOP_MANIFEST__#
-src/file1.rs
-src/file2.rs [NEW]
-src/old.rs [DELETE]
-#__SLOPCHOP_END__#
-
-#__SLOPCHOP_FILE__# src/file1.rs
-// Complete file content
-// No truncation allowed
-#__SLOPCHOP_END__#
-
-#__SLOPCHOP_FILE__# src/file2.rs
-// Another complete file
+#__SLOPCHOP_FILE__# src/auth/login.rs
+pub fn login(creds: &Credentials) -> Result<Session, AuthError> {
+    // complete implementation
+    // no truncation
+}
 #__SLOPCHOP_END__#
 ```
 
-### Block Types
+SlopChop parses this, validates it, writes files atomically, runs tests, commits on success.
 
-| Block | Purpose |
-|-------|---------|
-| `PLAN` | Human-readable summary |
-| `MANIFEST` | Declares all files being touched |
-| File paths | Actual file content |
-
-### Markers
-
-| Marker | Meaning |
-|--------|---------|
-| `[NEW]` | File will be created |
-| `[DELETE]` | File will be removed |
-| *(none)* | File will be updated |
+If AI uses markdown fences or truncates code, rejected.
 
 ---
 
-## The Three Laws
+## Who Is This For?
 
-### Law of Atomicity
-Files must be small enough to reason about.
-- Default: 2000 tokens (~500 lines)
-- Enforced: Reject files exceeding limit
+**Tribe C: AI-Native Builders**
 
-### Law of Complexity
-Functions must be simple enough to test.
-- Cyclomatic complexity ≤ 8
-- Nesting depth ≤ 3
-- Function arguments ≤ 5
-- Function name words ≤ 5
+You've fully embraced AI coding. You're not scared of it, you're not skeptical of it. You use it daily. Your pain is the copy-paste friction and the quality inconsistency.
 
-### Law of Paranoia (Rust)
-No panic paths in production code.
-- `.unwrap()` → Rejected
-- `.expect()` → Rejected
-- `.unwrap_or()` → Allowed
-- `?` operator → Allowed
+If you think AI code is categorically bad: this isn't for you.
+
+If you think AI code needs guardrails to be good: welcome.
 
 ---
 
-## "Is this an Agent?"
+## The Proof
 
-No. Agents (like Devin) try to be the pilot. **SlopChop keeps you as the pilot.**
+This tool was built by a product designer chatting with Claude.
 
-SlopChop is the navigation system and the safety interlocks. It allows you to use the most powerful LLMs available (which are currently chat-based) without sacrificing the integrity of your local codebase.
+It's ~10,000 lines of Rust across 50+ files. It has tree-sitter parsing, a TUI dashboard, dependency graph analysis, and a roadmap system with test traceability.
+
+Run `slopchop` on this repo. It passes its own rules.
+
+That's the point.
 
 ---
 
 ## Adoption Tiers
 
-### Tier 1: Structural Linting Only
+### Tier 1: Quality Scanner
 ```bash
-slopchop              # Scan for violations
-slopchop check        # Run tests/linters
+slopchop          # find violations
+slopchop check    # run tests
 ```
-Use SlopChop as a code quality scanner without AI integration.
+Use it as a linter. No AI required.
 
-### Tier 2: AI-Assisted Development
+### Tier 2: AI Workflow
 ```bash
-slopchop pack         # Generate context for AI
-slopchop apply        # Apply AI responses
+slopchop pack     # context for AI
+slopchop apply    # land AI code
 ```
-Add the pack/apply loop for AI coding sessions.
+The core loop.
 
-### Tier 3: Full Traceability
+### Tier 3: Full System
 ```bash
-slopchop roadmap audit --strict
+slopchop watch            # daemon mode
+slopchop roadmap audit    # test traceability
 ```
-Every feature tied to a test, programmatic progress tracking.
+For serious projects.
+
+---
+
+## FAQ
+
+**Is this like Cursor?**
+
+No. Cursor replaces your editor with an AI-integrated IDE. SlopChop doesn't touch your editor. It bridges the gap between any chat UI and your existing workflow. Use it with Claude.ai, ChatGPT, local LLMs, whatever.
+
+**Is this like Copilot?**
+
+No. Copilot is autocomplete. SlopChop is for the conversational workflow where you discuss architecture, debug together, and get back complete files.
+
+**Why Rust?**
+
+Fast, single binary, no runtime dependencies, great tree-sitter support, and the tool enforces the same discipline on itself.
+
+**Can I use this with languages other than Rust?**
+
+Yes. Complexity analysis works for Rust, TypeScript, JavaScript, and Python. Token limits and truncation detection work for any file type.
+
+---
+
+## Chop the Slop
+
+AI generates more code than ever. Most of it is slop.
+
+You can reject AI entirely. You can accept slop and drown in tech debt. Or you can chop it.
+
+```
+slopchop watch
+```
 
 ---
 
