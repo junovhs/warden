@@ -337,8 +337,8 @@
 - [ ] **Rust mod declaration extraction** <!-- test: tests/unit_graph.rs::test_rust_mod_extraction -->
 - [ ] **Rust re-export handling (pub use)** <!-- test: tests/unit_graph.rs::test_rust_reexport -->
 - [ ] **Rust crate:: path resolution** <!-- test: tests/unit_graph.rs::test_rust_crate_path -->
-- [ ] **Rust self:: path resolution** <!-- test: tests/unit_graph.rs::test_rust_self_path -->
-- [ ] **Rust super:: path resolution** <!-- test: tests/unit_graph.rs::test_rust_super_path -->
+- [x] **Rust self:: path resolution** <!-- test: tests/unit_graph.rs::test_rust_self_path -->
+- [x] **Rust super:: path resolution** <!-- test: tests/unit_graph.rs::test_rust_super_path -->
 - [ ] **Rust mod.rs index resolution** <!-- test: tests/unit_graph.rs::test_rust_mod_index -->
 
 ### Import Extraction — Python

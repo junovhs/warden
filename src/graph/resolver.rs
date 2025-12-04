@@ -23,26 +23,59 @@ pub fn resolve(project_root: &Path, current_file: &Path, import_str: &str) -> Op
 }
 
 fn resolve_rust(root: &Path, current: &Path, import: &str) -> Option<PathBuf> {
-    // 1. Handle "crate::" (Absolute from src/)
     if let Some(rest) = import.strip_prefix("crate::") {
-        let parts: Vec<&str> = rest.split("::").collect();
-        let base = root.join("src");
-        return check_variations(&base, &parts, "rs");
+        return resolve_crate_path(root, rest);
     }
 
-    // 2. Handle "super::" (Parent directory)
     if import.starts_with("super::") {
-        return None; // TODO: complex super chain resolution
+        return resolve_super_path(current, import);
     }
 
-    // 3. Handle relative `mod foo;` or `use foo;`
-    if !import.contains("::") && !import.starts_with("crate") {
-        let parent = current.parent()?;
-        let parts = vec![import];
-        return check_variations(parent, &parts, "rs");
+    if import.starts_with("self::") {
+        return resolve_self_path(current, import);
+    }
+
+    if !import.contains("::") {
+        return resolve_sibling_path(current, import);
     }
 
     None
+}
+
+fn resolve_crate_path(root: &Path, rest: &str) -> Option<PathBuf> {
+    let parts: Vec<&str> = rest.split("::").collect();
+    let base = root.join("src");
+    check_variations(&base, &parts, "rs")
+}
+
+fn resolve_super_path(current: &Path, import: &str) -> Option<PathBuf> {
+    let mut parts: Vec<&str> = import.split("::").collect();
+    let mut dir = current.parent()?;
+
+    // Consume super segments
+    while let Some(&"super") = parts.first() {
+        parts.remove(0);
+        dir = dir.parent()?;
+    }
+
+    if parts.is_empty() {
+        return None;
+    }
+    
+    check_variations(dir, &parts, "rs")
+}
+
+fn resolve_self_path(current: &Path, import: &str) -> Option<PathBuf> {
+    let rest = import.strip_prefix("self::")?;
+    let parts: Vec<&str> = rest.split("::").collect();
+    let dir = current.parent()?;
+    check_variations(dir, &parts, "rs")
+}
+
+fn resolve_sibling_path(current: &Path, import: &str) -> Option<PathBuf> {
+    let parent = current.parent()?;
+    let parts = vec![import];
+    check_variations(parent, &parts, "rs")
 }
 
 fn resolve_js(_root: &Path, current: &Path, import: &str) -> Option<PathBuf> {
@@ -148,6 +181,52 @@ mod tests {
         fs::write(&util, "// util")?;
 
         let resolved = resolve(root, &main, "util");
+        assert_eq!(resolved, Some(util));
+        Ok(())
+    }
+
+    #[test]
+    fn test_resolve_rust_super() -> Result<()> {
+        let temp = tempdir()?;
+        let root = temp.path();
+        
+        // Structure:
+        // src/
+        //   lib.rs
+        //   parent/
+        //     mod.rs
+        //     child.rs
+        
+        let src = root.join("src");
+        let parent = src.join("parent");
+        fs::create_dir_all(&parent)?;
+        
+        let lib = src.join("lib.rs");
+        let child = parent.join("child.rs");
+        
+        fs::write(&lib, "// lib")?;
+        fs::write(&child, "use super::lib;")?;
+
+        // From child.rs, super::lib refers to ../lib (which is lib.rs because lib is a sibling of parent)
+        let resolved = resolve(root, &child, "super::lib");
+        assert_eq!(resolved, Some(lib));
+        Ok(())
+    }
+
+    #[test]
+    fn test_resolve_rust_self() -> Result<()> {
+        let temp = tempdir()?;
+        let root = temp.path();
+        
+        let src = root.join("src");
+        fs::create_dir_all(&src)?;
+        
+        let main = src.join("main.rs");
+        let util = src.join("util.rs");
+        fs::write(&main, "")?;
+        fs::write(&util, "")?;
+
+        let resolved = resolve(root, &main, "self::util");
         assert_eq!(resolved, Some(util));
         Ok(())
     }
