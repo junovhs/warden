@@ -1,6 +1,6 @@
-# Warden Design Document
+# SlopChop Design Document
 
-> **Audience:** Developers (human or AI) working on or extending Warden.  
+> **Audience:** Developers (human or AI) working on or extending SlopChop.  
 > **See also:** [README.md](README.md) for user guide, [ROADMAP.md](ROADMAP.md) for feature tracking.
 
 ---
@@ -10,7 +10,7 @@
 1. [Vision & Philosophy](#vision--philosophy)
 2. [Architecture Overview](#architecture-overview)
 3. [The Three Laws](#the-three-laws)
-4. [The Warden Protocol](#the-warden-protocol)
+4. [The SlopChop Protocol](#the-SlopChop-protocol)
 5. [Analysis Engine](#analysis-engine)
 6. [Apply System](#apply-system)
 7. [Pack & Context System](#pack--context-system)
@@ -39,12 +39,12 @@ Developers end up manually reviewing every line, defeating the productivity gain
 
 ### The Solution
 
-**Warden is a gatekeeper, not a fixer.** It creates a feedback loop:
+**SlopChop is a gatekeeper, not a fixer.** It creates a feedback loop:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                 │
-│   warden pack ──► AI ──► warden apply ──► verify ──► commit    │
+│   SlopChop pack ──► AI ──► SlopChop apply ──► verify ──► commit    │
 │        ▲                      │                                 │
 │        │                      ▼                                 │
 │        └────── rejection ◄── FAIL                               │
@@ -53,7 +53,7 @@ Developers end up manually reviewing every line, defeating the productivity gain
 ```
 
 When AI output violates constraints:
-1. Warden rejects the entire response
+1. SlopChop rejects the entire response
 2. Generates a structured error message
 3. Copies it to clipboard for pasting back to AI
 4. AI corrects and resubmits
@@ -65,16 +65,16 @@ When AI output violates constraints:
 | # | Principle | Meaning |
 |---|-----------|---------|
 | 1 | **Every feature has a verified test** | No exceptions. The roadmap enforces this. |
-| 2 | **Reject bad input, don't fix it** | Warden is a gatekeeper, not a linter with autofix. |
+| 2 | **Reject bad input, don't fix it** | SlopChop is a gatekeeper, not a linter with autofix. |
 | 3 | **Git is the undo system** | Don't reinvent version control. Commit on success. |
 | 4 | **Explicit > Magic** | Fail loudly on format violations. |
 | 5 | **Containment over craftsmanship** | Constraints are safety, not style. |
-| 6 | **Self-hosting** | Warden passes its own rules. |
+| 6 | **Self-hosting** | SlopChop passes its own rules. |
 | 7 | **Context is king** | Give AI exactly what it needs, nothing more. |
 | 8 | **Graph over glob** | Understand structure, don't just pattern match. |
 | 9 | **Errors are context** | Parse failures to understand scope. |
 
-### What Warden Is NOT
+### What SlopChop Is NOT
 
 - **Not a linter** — It doesn't suggest fixes, it rejects
 - **Not an IDE plugin** — It's CLI-first, composable with any editor
@@ -187,13 +187,13 @@ src/
 ├── tokens.rs          # tiktoken integration
 ├── types.rs           # Shared types (Violation, FileReport, etc.)
 ├── wizard.rs          # Interactive configuration wizard
-└── lib.rs             # Public API (warden_core)
+└── lib.rs             # Public API (SlopChop_core)
 ```
 
 ### Data Flow
 
 ```
-User runs "warden pack"
+User runs "SlopChop pack"
          │
          ▼
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -233,7 +233,7 @@ User runs "warden pack"
 
 ## The Three Laws
 
-Warden enforces structural constraints inspired by code review best practices. These are configurable but opinionated defaults.
+SlopChop enforces structural constraints inspired by code review best practices. These are configurable but opinionated defaults.
 
 ### Law of Atomicity
 
@@ -306,7 +306,7 @@ max_function_words = 5   # Words in function name
 
 ---
 
-## The Warden Protocol
+## The SlopChop Protocol
 
 ### Why Not Markdown Fences?
 
@@ -315,7 +315,7 @@ AI models frequently mess up markdown code fences:
 - Some models emit fences with wrong language tags
 - Closing fences get matched incorrectly with earlier opens
 
-The `#__WARDEN_FILE__#` and `#__WARDEN_END__#` delimiters:
+The `#__SlopChop_FILE__#` and `#__SlopChop_END__#` delimiters:
 - Never appear in normal code
 - Unambiguous start/end delimiters
 - Visually distinctive
@@ -325,27 +325,27 @@ The `#__WARDEN_FILE__#` and `#__WARDEN_END__#` delimiters:
 ### Format Specification
 
 ```
-#__WARDEN_PLAN__#
+#__SlopChop_PLAN__#
 GOAL: What you're doing
 CHANGES:
 1. First change
 2. Second change
-#__WARDEN_END__#
+#__SlopChop_END__#
 
-#__WARDEN_MANIFEST__#
+#__SlopChop_MANIFEST__#
 src/file1.rs
 src/file2.rs [NEW]
 src/old.rs [DELETE]
-#__WARDEN_END__#
+#__SlopChop_END__#
 
-#__WARDEN_FILE__# src/file1.rs
+#__SlopChop_FILE__# src/file1.rs
 // Complete file content
 // No truncation allowed
-#__WARDEN_END__#
+#__SlopChop_END__#
 
-#__WARDEN_FILE__# src/file2.rs
+#__SlopChop_FILE__# src/file2.rs
 // Another complete file
-#__WARDEN_END__#
+#__SlopChop_END__#
 ```
 
 ### Block Types
@@ -377,7 +377,7 @@ src/old.rs [DELETE]
 
 ### Tree-sitter Integration
 
-Warden uses [tree-sitter](https://tree-sitter.github.io/) for structural code analysis. This provides:
+SlopChop uses [tree-sitter](https://tree-sitter.github.io/) for structural code analysis. This provides:
 - Language-agnostic AST access
 - Incremental parsing (though we don't use it yet)
 - Battle-tested grammars
@@ -451,7 +451,7 @@ Clipboard ──► Extract ──► Validate ──► Backup ──► Write 
                 │            │           │          ▼
                 │            │           │     Write files atomically
                 │            │           ▼
-                │            │     Backup existing files to .warden_apply_backup/
+                │            │     Backup existing files to .SlopChop_apply_backup/
                 │            ▼
                 │     Path safety, truncation detection, manifest validation
                 ▼
@@ -464,7 +464,7 @@ Clipboard ──► Extract ──► Validate ──► Backup ──► Write 
 - No `../` traversal
 - No absolute paths (`/etc/passwd`, `C:\Windows`)
 - No sensitive files (`.env`, `.ssh/`, `.aws/`, `.git/`)
-- No hidden files (except `.gitignore`, `.wardenignore`)
+- No hidden files (except `.gitignore`, `.SlopChopignore`)
 - No overwriting `ROADMAP.md` (protected)
 
 **Content Safety:**
@@ -477,7 +477,7 @@ Clipboard ──► Extract ──► Validate ──► Backup ──► Write 
 
 Before any write:
 ```
-.warden_apply_backup/
+.SlopChop_apply_backup/
 └── 1699876543/           # Unix timestamp
     └── src/
         └── modified.rs   # Original content preserved
@@ -487,7 +487,7 @@ Before any write:
 
 ### Verification
 
-After successful writes, Warden runs configured check commands:
+After successful writes, SlopChop runs configured check commands:
 
 ```toml
 [commands]
@@ -523,7 +523,7 @@ AI context windows are finite. You can't send your entire codebase for every req
 
 **Current solution:** Focus mode
 ```bash
-warden pack --target src/apply/mod.rs
+SlopChop pack --target src/apply/mod.rs
 ```
 - Target file: full content
 - All other files: skeletonized (signatures only)
@@ -552,7 +552,7 @@ pub fn validate_user(input: &UserInput) -> Result<User, ValidationError> { ... }
 
 ### Prompt Generation
 
-Every `warden pack` output includes:
+Every `SlopChop pack` output includes:
 1. **Header:** System prompt with The Three Laws, current limits, Protocol instructions
 2. **Violations:** Any existing rule violations (priority fix required)
 3. **Files:** Codebase content in Protocol format
@@ -589,7 +589,7 @@ The `graph` module provides dependency-aware context generation:
 ### Trace Command
 
 ```bash
-warden trace src/apply/mod.rs --depth 2 --budget 4000
+SlopChop trace src/apply/mod.rs --depth 2 --budget 4000
 ```
 
 **Output Structure:**
@@ -600,12 +600,12 @@ warden trace src/apply/mod.rs --depth 2 --budget 4000
 ### Map Command
 
 ```bash
-warden map --deps
+SlopChop map --deps
 ```
 
 Generates a structural overview:
 ```
-WARDEN CODEBASE MAP
+SlopChop CODEBASE MAP
 ==================
 
 src/
@@ -638,7 +638,7 @@ src/apply/mod.rs        # Uses both (already seen)
 
 The roadmap isn't just documentation—it's a **contract**:
 - Every `[x]` feature has a `<!-- test: path::function -->` anchor
-- `warden roadmap audit` verifies anchors resolve to real tests
+- `SlopChop roadmap audit` verifies anchors resolve to real tests
 - This enforces that "done" means "tested"
 
 ### Programmatic Updates
@@ -670,7 +670,7 @@ MOVE "task-slug" AFTER "other-task"
 
 ### Unified Apply
 
-When you run `warden apply`, it handles BOTH:
+When you run `SlopChop apply`, it handles BOTH:
 1. Code files (Protocol blocks)
 2. Roadmap updates (`===ROADMAP===` block)
 
@@ -679,7 +679,7 @@ When you run `warden apply`, it handles BOTH:
 ### Audit System
 
 ```bash
-warden roadmap audit --strict
+SlopChop roadmap audit --strict
 ```
 
 Verifies:
@@ -708,8 +708,8 @@ Verifies:
 | Path traversal | Block any path containing `..` |
 | Absolute paths | Block paths starting with `/` or `C:\` |
 | Sensitive files | Blocklist: `.env`, `.ssh/`, `.aws/`, `.gnupg/`, `id_rsa`, `credentials` |
-| Hidden files | Block `.*` except `.gitignore`, `.wardenignore` |
-| Backup overwrite | Block `.warden_apply_backup/` |
+| Hidden files | Block `.*` except `.gitignore`, `.SlopChopignore` |
+| Backup overwrite | Block `.SlopChop_apply_backup/` |
 | Truncation | Detect `// ...`, `/* ... */`, `# ...`, lazy phrases |
 | Empty files | Reject zero-content files |
 | Protected files | Block `ROADMAP.md` overwrites (use roadmap commands instead) |
@@ -730,7 +730,7 @@ Verifies:
 - **Reliability:** No runtime crashes from null/undefined
 - **Tree-sitter bindings:** First-class Rust support
 - **Single binary:** Easy distribution, no dependencies
-- **Dogfooding:** Warden enforces Rust best practices on itself
+- **Dogfooding:** SlopChop enforces Rust best practices on itself
 
 ### Why Tree-sitter Over LSP?
 
@@ -749,7 +749,7 @@ Verifies:
 ### Why Custom Protocol Over Markdown?
 
 - **Unambiguous:** No fence-escape issues
-- **Distinctive:** `#__WARDEN_FILE__#` never appears in code
+- **Distinctive:** `#__SlopChop_FILE__#` never appears in code
 - **Simple:** No language tags, just path and content
 - **Parseable:** Clean delimiters
 
@@ -790,7 +790,7 @@ Verifies:
 ### Internal Module Dependencies
 
 ```
-lib.rs (warden_core)
+lib.rs (SlopChop_core)
     ├── analysis ──► config, types, tokens
     ├── apply ────► config, types, clipboard, roadmap
     ├── pack ─────► config, discovery, analysis, skeleton, prompt, clipboard, graph
@@ -811,7 +811,7 @@ lib.rs (warden_core)
 From ROADMAP.md Philosophy:
 > Every `[x]` feature MUST have a `<!-- test: path::function -->` reference
 
-This is enforced by `warden roadmap audit --strict`.
+This is enforced by `SlopChop roadmap audit --strict`.
 
 ### Test Organization
 
@@ -891,7 +891,7 @@ Planned for v1.0.0:
 | VS Code Extension | IDE lock-in, maintenance burden |
 | Watch mode | Complexity without clear benefit |
 | Markdown fallback | Enforce format discipline |
-| Auto-fix | Warden rejects, doesn't repair |
+| Auto-fix | SlopChop rejects, doesn't repair |
 | LSP server | Overkill for our use case |
 | Multi-repo | One project at a time |
 | Cloud service | Local-first philosophy |
@@ -903,7 +903,7 @@ Planned for v1.0.0:
 See ROADMAP.md for current priorities. The `🔄 CURRENT` version marker indicates active development.
 
 Before submitting:
-1. Run `warden` (must pass own rules)
+1. Run `SlopChop` (must pass own rules)
 2. Run `cargo clippy --all-targets -- -D warnings -D clippy::pedantic`
 3. Run `cargo test`
 4. Ensure new features have `<!-- test: -->` anchors in ROADMAP.md

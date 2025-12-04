@@ -34,8 +34,9 @@ fn test_warden_passes_own_rules() {
             }
         }
         panic!(
-            "Warden failed its own rules! Found {} violations.",
+            "SlopChop failed its own rules! Found {} violations.",
             report.total_violations
         );
     }
 }
+

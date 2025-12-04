@@ -3,14 +3,14 @@ use std::fs;
 
 fn hook_content() -> &'static str {
     r"#!/bin/sh
-echo 'Warden: Running pre-commit checks...'
+echo 'SlopChop: Running pre-commit checks...'
 warden check
 RESULT=$?
 if [ $RESULT -ne 0 ]; then
-    echo 'Warden found violations. Commit blocked.'
+    echo 'SlopChop found violations. Commit blocked.'
     exit 1
 fi
-echo 'Warden: All checks passed!'
+echo 'SlopChop: All checks passed!'
 exit 0
 "
 }

@@ -10,7 +10,7 @@ use std::path::Path;
 /// # Errors
 /// Returns error if IO fails or file writing fails.
 pub fn run() -> Result<()> {
-    println!("{}", "🧙 Warden Configuration Wizard".bold().cyan());
+    println!("{}", "🧙 SlopChop Configuration Wizard".bold().cyan());
     println!("{}", "─────────────────────────────────────".dimmed());
 
     if Path::new("warden.toml").exists() {
@@ -33,7 +33,10 @@ pub fn run() -> Result<()> {
     std::fs::write("warden.toml", content)?;
 
     println!();
-    println!("{}", "✅ Configuration created successfully!".green().bold());
+    println!(
+        "{}",
+        "✅ Configuration created successfully!".green().bold()
+    );
     println!("Run {} to analyze your project.", "warden".yellow());
 
     Ok(())
@@ -43,7 +46,7 @@ fn prompt_project_type() -> Result<ProjectType> {
     let detected = ProjectType::detect();
     println!();
     println!("Detected Project Type: {}", format!("{detected:?}").cyan());
-    
+
     if confirm("Is this correct?")? {
         return Ok(detected);
     }
@@ -54,11 +57,11 @@ fn prompt_project_type() -> Result<ProjectType> {
     println!("2. Node/TypeScript");
     println!("3. Python");
     println!("4. Go");
-    
+
     loop {
         print!("Enter selection [1-4]: ");
         io::stdout().flush()?;
-        
+
         let input = read_line()?;
         match input.trim() {
             "1" => return Ok(ProjectType::Rust),
@@ -73,17 +76,26 @@ fn prompt_project_type() -> Result<ProjectType> {
 fn prompt_strictness() -> Result<Strictness> {
     println!();
     println!("Select Strictness Level:");
-    println!("{}", "1. Strict   (Greenfield) - 1500 tokens, Low Complexity".green());
-    println!("{}", "2. Standard (Recommended)- 2000 tokens, Medium Complexity".cyan());
-    println!("{}", "3. Relaxed  (Legacy)     - 3000 tokens, High Complexity".yellow());
+    println!(
+        "{}",
+        "1. Strict   (Greenfield) - 1500 tokens, Low Complexity".green()
+    );
+    println!(
+        "{}",
+        "2. Standard (Recommended)- 2000 tokens, Medium Complexity".cyan()
+    );
+    println!(
+        "{}",
+        "3. Relaxed  (Legacy)     - 3000 tokens, High Complexity".yellow()
+    );
 
     loop {
         print!("Enter selection [1-3] (default: 2): ");
         io::stdout().flush()?;
-        
+
         let input = read_line()?;
         if input.trim().is_empty() {
-             return Ok(Strictness::Standard);
+            return Ok(Strictness::Standard);
         }
 
         match input.trim() {

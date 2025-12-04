@@ -40,7 +40,7 @@ fn print_success(written: &[String], deleted: &[String], roadmap: &[String], bac
     if !roadmap.is_empty() {
         println!("{}", "\n   Roadmap Updates:".cyan());
         for msg in roadmap {
-             println!("   {msg}");
+            println!("   {msg}");
         }
     }
 
@@ -84,10 +84,12 @@ pub fn print_ai_feedback(ai_message: &str) {
 #[must_use]
 pub fn format_ai_rejection(missing: &[String], errors: &[String]) -> String {
     use std::fmt::Write;
-    let mut msg = String::from("The previous output was rejected by the Warden Protocol.\n\n");
+    let mut msg = String::from("The previous output was rejected by the SlopChop Protocol.\n\n");
 
     if !missing.is_empty() {
-        msg.push_str("MISSING FILES (Declared in MANIFEST but no #__WARDEN_FILE__# block found):\n");
+        msg.push_str(
+            "MISSING FILES (Declared in MANIFEST but no #__WARDEN_FILE__# block found):\n",
+        );
         for f in missing {
             let _ = writeln!(msg, "- {f}");
         }

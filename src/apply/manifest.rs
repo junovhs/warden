@@ -4,7 +4,7 @@ use anyhow::Result;
 use regex::Regex;
 
 /// Parses the delivery manifest block.
-/// Supports both Legacy XML and Warden Protocol.
+/// Supports both Legacy XML and SlopChop Protocol.
 ///
 /// # Errors
 /// Returns error if regex compilation fails.

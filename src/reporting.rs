@@ -53,7 +53,7 @@ fn print_violation(path: &std::path::Path, v: &Violation) {
 fn print_summary(report: &ScanReport, failures: usize) {
     if failures > 0 {
         let msg = format!(
-            "❌ Warden found {failures} violations in {}ms.",
+            "❌ SlopChop found {failures} violations in {}ms.",
             report.duration_ms
         );
         println!("{}", msg.red().bold());

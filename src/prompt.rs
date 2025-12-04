@@ -43,7 +43,7 @@ impl PromptGenerator {
         format!(
             r"🛡️ SYSTEM MANDATE: THE WARDEN PROTOCOL
 ROLE: High-Integrity Systems Architect (NASA/JPL Standard).
-CONTEXT: You are coding inside a strict environment enforced by Warden.
+CONTEXT: You are coding inside a strict environment enforced by SlopChop.
 
 THE 3 LAWS (Non-Negotiable):
 
@@ -78,7 +78,7 @@ THE 3 LAWS (Non-Negotiable):
 □ Nesting ≤ {depth}
 □ Args ≤ {args}
 □ No .unwrap() or .expect()
-□ Use Warden Format (#__WARDEN_FILE__# ... #__WARDEN_END__#)"
+□ Use SlopChop Format (#__WARDEN_FILE__# ... #__WARDEN_END__#)"
         )
     }
 }

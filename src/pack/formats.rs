@@ -8,7 +8,7 @@ use anyhow::Result;
 use super::{FocusContext, PackOptions};
 use crate::skeleton;
 
-/// Packs files into the Warden format.
+/// Packs files into the SlopChop format.
 ///
 /// # Errors
 /// Returns an error if file reading fails.
@@ -19,7 +19,7 @@ pub fn pack_warden(files: &[PathBuf], out: &mut String, opts: &PackOptions) -> R
     Ok(())
 }
 
-/// Packs files into the Warden format with focus awareness.
+/// Packs files into the SlopChop format with focus awareness.
 ///
 /// # Errors
 /// Returns an error if file reading fails.

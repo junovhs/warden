@@ -1,8 +1,8 @@
-# Warden
+# SlopChop
 
 **Bring rigor to your conversations with AI.**
 
-Warden is a command-line tool designed for developers who love the conversational workflow of AI (ChatGPT, Claude, DeepSeek) but hate the friction of moving code back and forth.
+SlopChop is a command-line tool designed for developers who love the conversational workflow of AI (ChatGPT, Claude, DeepSeek) but hate the friction of moving code back and forth.
 
 It doesn't try to replace the Chat UI with a headless agent. It respects that **chatting is thinking**. The back-and-forth is where the architecture happens.
 
@@ -12,7 +12,7 @@ The problem isn't the conversation; it's the **delivery**.
 - The AI gets lazy and gives you `// ... rest of implementation`.
 - You lose track of what you've actually finished vs. what you just talked about.
 
-**Warden bridges the gap between the chat window and your compiler.** It ensures that when you decide to apply the AI's advice, it is **Deterministic**, **Atomic**, and **Safe**.
+**SlopChop bridges the gap between the chat window and your compiler.** It ensures that when you decide to apply the AI's advice, it is **Deterministic**, **Atomic**, and **Safe**.
 
 ---
 
@@ -20,30 +20,30 @@ The problem isn't the conversation; it's the **delivery**.
 
 We believe that **slowing down** to articulate your problem to an AI is a feature, not a bug. It forces you to think. But once the thinking is done, the *doing* should be instant and error-free.
 
-Warden acts as a **Gatekeeper**.
+SlopChop acts as a **Gatekeeper**.
 
 1. **Pack** your context (smartly filtered) to the clipboard.
 2. **Converse** with the AI in your browser.
 3. **Apply** the result via a rigorous protocol.
 
-If the AI produces garbage, Warden rejects it and tells the AI *exactly why*.
+If the AI produces garbage, SlopChop rejects it and tells the AI *exactly why*.
 
 ---
 
-## How Warden Changes the Game
+## How SlopChop Changes the Game
 
 ### 1. The Protocol (Certainty in Transport)
 Markdown code blocks (` ```rust `) are fragile. AIs mess them up constantly.
 
-Warden teaches the AI a specific, delimiter-based protocol (`#__WARDEN_FILE__#`). When you run `warden apply`, it doesn't just regex-match text; it parses a structured manifest.
+SlopChop teaches the AI a specific, delimiter-based protocol (`#__WARDEN_FILE__#`). When you run `warden apply`, it doesn't just regex-match text; it parses a structured manifest.
 
 **Result:** No more copy-paste errors. No more "files ending in the middle." If the protocol is valid, the file lands.
 
 ### 2. The Three Laws (Enforced Modularity)
-AIs love to write spaghetti code. They don't have to maintain it—you do. Warden enforces architectural discipline at the gate.
+AIs love to write spaghetti code. They don't have to maintain it—you do. SlopChop enforces architectural discipline at the gate.
 
 If an AI tries to give you a complex function:
-> **Warden:** "Error: Function `process_data` has a Cyclomatic Complexity of 12 (Max: 8). Refactor."
+> **SlopChop:** "Error: Function `process_data` has a Cyclomatic Complexity of 12 (Max: 8). Refactor."
 
 You paste that error back to the chat. The AI apologizes and breaks the function into three smaller, testable helpers.
 
@@ -59,12 +59,12 @@ fn complicated_logic() {
 ```
 If you paste this, you delete your source code.
 
-Warden detects these "lazy markers" (comments, placeholders, ellipses) and **rejects the file immediately**, forcing the AI to provide the complete, compile-ready source.
+SlopChop detects these "lazy markers" (comments, placeholders, ellipses) and **rejects the file immediately**, forcing the AI to provide the complete, compile-ready source.
 
 ### 4. Shared Memory (The Roadmap)
 Chats are ephemeral. Context windows forget.
 
-Warden maintains a `ROADMAP.md` that serves as the project's long-term memory. The AI can read it to know where we are, and issue commands to update it:
+SlopChop maintains a `ROADMAP.md` that serves as the project's long-term memory. The AI can read it to know where we are, and issue commands to update it:
 
 ```
 ===ROADMAP===
@@ -76,13 +76,13 @@ ADD "auth-logout" AFTER "auth-login"
 **Result:** One paste updates your code **and** your project status.
 
 ### 5. Smart Context (Dependency-Aware Packing)
-Not all files are equal. Warden understands your codebase's structure.
+Not all files are equal. SlopChop understands your codebase's structure.
 
 ```bash
 warden trace src/apply/mod.rs --depth 2
 ```
 
-Warden walks the import graph, packs your anchor file in full, and includes dependencies as skeletons—optimizing the AI's context window.
+SlopChop walks the import graph, packs your anchor file in full, and includes dependencies as skeletons—optimizing the AI's context window.
 
 ---
 
@@ -97,20 +97,20 @@ warden pack src/auth/
 **You (in ChatGPT):** [Paste Context] "The login handler is failing when..."
 
 **AI:** "I see the issue. Here is the fix."
-*[AI outputs a Warden Protocol block]*
+*[AI outputs a SlopChop Protocol block]*
 
 **You:** [Copy Response]
 ```bash
 warden apply
 ```
 
-**Warden:**
+**SlopChop:**
 ```text
 ❌ Validation Failed
 - src/auth/login.rs: High Complexity: Score is 10 (Max: 8).
 - src/auth/login.rs: Detected lazy truncation marker: '// ...'.
 ```
-*[Warden copies this error report to your clipboard]*
+*[SlopChop copies this error report to your clipboard]*
 
 **You (in ChatGPT):** [Paste Error]
 
@@ -122,7 +122,7 @@ warden apply
 warden apply
 ```
 
-**Warden:**
+**SlopChop:**
 ```text
 ✅ Apply successful!
    ✓ src/auth/login.rs
@@ -150,7 +150,7 @@ cargo install --path .
 # Initialize configuration (interactive wizard)
 warden --init
 
-# Or let Warden auto-detect and create warden.toml
+# Or let SlopChop auto-detect and create warden.toml
 warden
 ```
 
@@ -249,7 +249,7 @@ Traces dependencies from an anchor file, generating optimized context:
 
 ## Configuration (`warden.toml`)
 
-Warden is opinionated, but you can negotiate.
+SlopChop is opinionated, but you can negotiate.
 
 ```toml
 [rules]
@@ -262,7 +262,7 @@ ignore_tokens_on = [".lock", ".md"] # Skip token checks
 ignore_naming_on = ["tests"]        # Skip naming checks
 
 [commands]
-# Warden runs these before committing. If they fail, the apply is rejected.
+# SlopChop runs these before committing. If they fail, the apply is rejected.
 check = ["cargo test", "cargo clippy --all-targets -- -D warnings"]
 fix = "cargo fmt"
 ```
@@ -340,9 +340,9 @@ No panic paths in production code.
 
 ## "Is this an Agent?"
 
-No. Agents (like Devin) try to be the pilot. **Warden keeps you as the pilot.**
+No. Agents (like Devin) try to be the pilot. **SlopChop keeps you as the pilot.**
 
-Warden is the navigation system and the safety interlocks. It allows you to use the most powerful LLMs available (which are currently chat-based) without sacrificing the integrity of your local codebase.
+SlopChop is the navigation system and the safety interlocks. It allows you to use the most powerful LLMs available (which are currently chat-based) without sacrificing the integrity of your local codebase.
 
 ---
 
@@ -353,7 +353,7 @@ Warden is the navigation system and the safety interlocks. It allows you to use 
 warden              # Scan for violations
 warden check        # Run tests/linters
 ```
-Use Warden as a code quality scanner without AI integration.
+Use SlopChop as a code quality scanner without AI integration.
 
 ### Tier 2: AI-Assisted Development
 ```bash

@@ -133,7 +133,7 @@ impl CommandEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct WardenToml {
+pub struct SlopChopToml {
     #[serde(default)]
     pub rules: RuleConfig,
     #[serde(default)]

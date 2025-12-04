@@ -5,7 +5,7 @@ use colored::Colorize;
 use std::fmt::Write as FmtWrite;
 use std::process::Command;
 
-/// Runs configured checks and Warden scan to verify application.
+/// Runs configured checks and SlopChop scan to verify application.
 /// Returns `(success, log_output)`.
 ///
 /// # Errors

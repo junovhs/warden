@@ -47,7 +47,7 @@ venv/
 !/target/release/gauntlet.exe
 chaos_examples/
 
-# Warden backups
+# SlopChop backups
 .warden_apply_backup/
 .warden_intent
 context.txt

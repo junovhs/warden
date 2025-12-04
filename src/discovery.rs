@@ -3,7 +3,7 @@ use crate::config::{
     Config, GitMode, BIN_EXT_PATTERN, CODE_BARE_PATTERN, CODE_EXT_PATTERN, SECRET_PATTERN,
 };
 use crate::constants::should_prune;
-use crate::error::{Result, WardenError};
+use crate::error::{Result, SlopChopError};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
@@ -35,7 +35,7 @@ fn enumerate_files(config: &Config) -> Result<Vec<PathBuf>> {
 
 fn enumerate_git_required() -> Result<Vec<PathBuf>> {
     if !in_git_repo() {
-        return Err(WardenError::NotInGitRepo);
+        return Err(SlopChopError::NotInGitRepo);
     }
     git_ls_files().map(filter_pruned)
 }
@@ -95,7 +95,7 @@ fn git_ls_files() -> Result<Vec<PathBuf>> {
         .output()?;
 
     if !out.status.success() {
-        return Err(WardenError::Other(format!(
+        return Err(SlopChopError::Other(format!(
             "git ls-files failed: {}",
             out.status
         )));
@@ -189,9 +189,9 @@ fn calculate_entropy(path: &Path) -> std::io::Result<f64> {
         *freq.entry(b).or_insert(0) += 1;
     }
     let len = bytes.len() as f64;
-    Ok(freq
-        .values()
-        .fold(0.0, |acc, &n| acc - (f64::from(n) / len) * (f64::from(n) / len).log2()))
+    Ok(freq.values().fold(0.0, |acc, &n| {
+        acc - (f64::from(n) / len) * (f64::from(n) / len).log2()
+    }))
 }
 
 // --- Config Filter ---

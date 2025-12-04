@@ -7,7 +7,7 @@ fn test_load_toml() {
         [rules]
         max_file_tokens = 3000
         ignore_naming_on = ["foo"]
-        
+
         [preferences]
         auto_copy = false
     "#;
@@ -60,19 +60,22 @@ fn test_command_list() {
 #[test]
 fn test_wardenignore() {
     let mut config = Config::new();
-    
+
     // Should be ignored
     config.process_ignore_line("target");
-    // Warden uses Regex for ignore patterns, not globs.
+    // SlopChop uses Regex for ignore patterns, not globs.
     // ".*\.log" matches any characters followed by .log
     config.process_ignore_line(r".*\.log");
-    
+
     // Should be skipped
     config.process_ignore_line("# comment");
     config.process_ignore_line("");
 
     assert!(config.exclude_patterns.iter().any(|r| r.is_match("target")));
-    assert!(config.exclude_patterns.iter().any(|r| r.is_match("app.log")));
+    assert!(config
+        .exclude_patterns
+        .iter()
+        .any(|r| r.is_match("app.log")));
     assert!(!config.exclude_patterns.iter().any(|r| r.is_match("src")));
 }
 
@@ -97,8 +100,14 @@ fn test_ignore_naming_on() {
     "#;
     let mut config = Config::new();
     config.parse_toml(toml);
-    
-    let is_ignored = |path: &str| config.rules.ignore_naming_on.iter().any(|p| path.contains(p));
+
+    let is_ignored = |path: &str| {
+        config
+            .rules
+            .ignore_naming_on
+            .iter()
+            .any(|p| path.contains(p))
+    };
 
     assert!(is_ignored("tests/my_test.rs"));
     assert!(is_ignored("src/spec.rs"));

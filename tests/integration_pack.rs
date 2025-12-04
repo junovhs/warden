@@ -5,7 +5,7 @@ use warden_core::pack::{self, PackOptions};
 
 #[test]
 fn test_nabla_delimiters_are_unique() {
-    // Legacy name for roadmap compatibility. Tests Warden Protocol delimiters.
+    // Legacy name for roadmap compatibility. Tests SlopChop Protocol delimiters.
     let temp = tempdir().unwrap();
     let root = temp.path();
     let file_path = root.join("test.rs");
@@ -27,7 +27,7 @@ fn test_nabla_delimiters_are_unique() {
 
 #[test]
 fn test_nabla_format_structure() {
-    // Legacy name for roadmap compatibility. Tests Warden Protocol format.
+    // Legacy name for roadmap compatibility. Tests SlopChop Protocol format.
     let temp = tempdir().unwrap();
     let root = temp.path();
     let file_path = root.join("src/main.rs");
@@ -50,7 +50,7 @@ fn test_nabla_format_structure() {
 
 #[test]
 fn test_prompt_includes_nabla_instructions() {
-    // Legacy name. Checks for Warden Protocol instructions.
+    // Legacy name. Checks for SlopChop Protocol instructions.
     let config = Config::default();
     let generator = warden_core::prompt::PromptGenerator::new(config.rules);
     let prompt = generator.generate().unwrap();

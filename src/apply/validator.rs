@@ -127,7 +127,7 @@ fn build_roadmap_rejection_message(commands: &[Command]) -> String {
     let mut msg = String::new();
     let _ = writeln!(
         msg,
-        "The Warden Protocol blocked a direct rewrite of ROADMAP.md.\n"
+        "The SlopChop Protocol blocked a direct rewrite of ROADMAP.md.\n"
     );
     let _ = writeln!(
         msg,

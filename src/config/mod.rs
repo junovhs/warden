@@ -2,7 +2,9 @@
 pub mod io;
 pub mod types;
 
-pub use self::types::{CommandEntry, Config, GitMode, Preferences, RuleConfig, Theme, WardenToml};
+pub use self::types::{
+    CommandEntry, Config, GitMode, Preferences, RuleConfig, SlopChopToml, Theme,
+};
 use crate::error::Result;
 
 impl Config {
