@@ -40,7 +40,6 @@
 - [x] **Node project detection (package.json)** <!-- test: tests/unit_project.rs::test_detect_node -->
 - [x] **Python project detection** <!-- test: tests/unit_project.rs::test_detect_python -->
 - [x] **Go project detection (go.mod)** <!-- test: tests/unit_project.rs::test_detect_go -->
-- [x] **Unknown project fallback** <!-- test: tests/unit_project.rs::test_detect_unknown -->
 
 ### Configuration
 - [x] **TOML config loading** <!-- test: tests/unit_config.rs::test_load_toml -->
@@ -80,7 +79,6 @@
 - [x] **Naming ignore patterns** <!-- test: tests/unit_config.rs::test_ignore_naming_on -->
 
 ### Law of Paranoia (Rust)
-- [x] **Banned call query (.unwrap/.expect)** <!-- test: tests/integration_core.rs::test_paranoia_unwrap_fails -->
 - [x] **.expect() detection** <!-- test: tests/integration_core.rs::test_paranoia_expect_fails -->
 - [x] **Safe alternatives allowed (.unwrap_or)** <!-- test: tests/integration_core.rs::test_paranoia_safe_alternatives_pass -->
 
@@ -624,6 +622,7 @@
 
 ## TUI Consolidation (Mission Control)
 - [ ] **Consolidation (Mission Control)" "TUI: View Filters (Pending/Done/All)"**
+- [ ] **Mission Control (v0.8.0)" "View Filters** (Pending/Done/All)"**
 - [x] **Mission Control (v0.8.0)" "Unified Dashboard** (Single entry point `slopchop dashboard`)"**
 - [x] **Mission Control (v0.8.0)" "Check Runner** (Live test/lint output in pane)"**
 - [x] **Mission Control (v0.8.0)" "Roadmap Explorer** (Navigate and check tasks interactively)"**
@@ -637,11 +636,13 @@
 - [ ] **- Dependency Graph ?" "**slopchop watch command** <!-- test: tests/cli_watch.rs::test_watch_starts -->"**
 - [ ] **- Dependency Graph ?" "**Background process management** <!-- test: tests/unit_daemon.rs::test_daemon_lifecycle -->"**
 - [ ] **- Dependency Graph ?" "**Graceful shutdown (SIGTERM)** <!-- test: tests/unit_daemon.rs::test_graceful_shutdown -->"**
-- [x] **Construction" "**Graph node/edge creation** <!-- test: tests/unit_graph_build.rs::test_node_creation -->"**
-- [ ] **Construction" "**Reverse index construction** <!-- test: tests/unit_graph_build.rs::test_reverse_index -->"**
 - [ ] **- Dependency Graph ?" "**slopchop watch command** <!-- test: tests/cli_watch.rs::test_watch_starts -->"**
 - [ ] **- Dependency Graph ?" "**Background process management** <!-- test: tests/unit_daemon.rs::test_daemon_lifecycle -->"**
 - [ ] **- Dependency Graph ?" "**Graceful shutdown (SIGTERM)** <!-- test: tests/unit_daemon.rs::test_graceful_shutdown -->"**
+
+## TUI Mission Control (v0.8.0)
+
+## v0.8.0 - Dependency Graph ?
 
 ## TUI Mission Control (v0.8.0)
 
