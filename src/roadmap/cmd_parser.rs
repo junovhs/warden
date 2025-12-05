@@ -3,6 +3,7 @@ use crate::roadmap::str_utils;
 use crate::roadmap::types::{Command, CommandBatch, MovePosition};
 
 impl CommandBatch {
+    #[must_use]
     pub fn parse(input: &str) -> Self {
         let mut commands = Vec::new();
         let mut errors = Vec::new();
@@ -25,6 +26,7 @@ impl CommandBatch {
         Self { commands, errors }
     }
 
+    #[must_use]
     pub fn summary(&self) -> String {
         let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
         for cmd in &self.commands {

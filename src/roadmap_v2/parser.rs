@@ -4,7 +4,10 @@ use super::types::{RoadmapCommand, Task, TaskUpdate};
 
 const BLOCK_START: &str = "===ROADMAP===";
 
-/// Parse all roadmap command blocks from input text
+/// Parse all roadmap command blocks from input text.
+///
+/// # Errors
+/// Returns error if a command block is malformed or has missing required fields.
 pub fn parse_commands(input: &str) -> Result<Vec<RoadmapCommand>, SlopChopError> {
     let blocks = extract_blocks(input);
     let mut commands = Vec::new();
@@ -51,7 +54,7 @@ fn parse_single_block(block: &str) -> Result<RoadmapCommand, SlopChopError> {
         "ADD" => parse_add(&lines[1..]),
         "UPDATE" => parse_update(&lines[1..]),
         "DELETE" => parse_delete(&lines[1..]),
-        other => Err(SlopChopError::Parse(format!(
+        other => Err(SlopChopError::Other(format!(
             "Unknown roadmap command: {other}"
         ))),
     }
@@ -74,18 +77,18 @@ fn parse_delete(lines: &[&str]) -> Result<RoadmapCommand, SlopChopError> {
 
 fn parse_add(lines: &[&str]) -> Result<RoadmapCommand, SlopChopError> {
     let id = require_field(lines, "id")?;
-    let text = require_field(lines, "text")?;
+    let task_text = require_field(lines, "text")?;
     let section = require_field(lines, "section")?;
     let group = optional_field(lines, "group");
-    let test = optional_field(lines, "test");
+    let test_anchor = optional_field(lines, "test");
 
     let task = Task {
         id,
-        text,
+        text: task_text,
         status: super::types::TaskStatus::Pending,
         section,
         group,
-        test,
+        test: test_anchor,
         order: 0,
     };
 
@@ -106,7 +109,7 @@ fn parse_update(lines: &[&str]) -> Result<RoadmapCommand, SlopChopError> {
 
 fn require_field(lines: &[&str], key: &str) -> Result<String, SlopChopError> {
     optional_field(lines, key).ok_or_else(|| {
-        SlopChopError::Parse(format!("Missing required field: {key}"))
+        SlopChopError::Other(format!("Missing required field: {key}"))
     })
 }
 
@@ -127,12 +130,7 @@ mod tests {
 
     #[test]
     fn test_parse_check() {
-        let input = r#"
-===ROADMAP===
-CHECK
-id = my-task
-===ROADMAP===
-"#;
+        let input = "===ROADMAP===\nCHECK\nid = my-task\n===ROADMAP===";
         let cmds = parse_commands(input).unwrap_or_default();
         assert_eq!(cmds.len(), 1);
         assert!(matches!(&cmds[0], RoadmapCommand::Check { id } if id == "my-task"));
@@ -140,16 +138,7 @@ id = my-task
 
     #[test]
     fn test_parse_add() {
-        let input = r#"
-===ROADMAP===
-ADD
-id = new-feature
-text = Support Go complexity
-section = v0.8.0
-group = Language Support
-test = tests/unit.rs::test_go
-===ROADMAP===
-"#;
+        let input = "===ROADMAP===\nADD\nid = new-feature\ntext = Support Go\nsection = v0.8.0\ngroup = Lang\ntest = tests/unit.rs::test_go\n===ROADMAP===";
         let cmds = parse_commands(input).unwrap_or_default();
         assert_eq!(cmds.len(), 1);
         assert!(matches!(&cmds[0], RoadmapCommand::Add(t) if t.id == "new-feature"));

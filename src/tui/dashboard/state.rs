@@ -96,6 +96,10 @@ impl Default for DashboardApp {
 }
 
 impl DashboardApp {
+    /// Create a new dashboard application.
+    ///
+    /// # Errors
+    /// Returns error if roadmap file cannot be parsed.
     pub fn new() -> Result<Self> {
         let roadmap = Roadmap::from_file(Path::new("ROADMAP.md")).ok();
         let (ctx, crx) = mpsc::channel();
@@ -153,8 +157,7 @@ impl DashboardApp {
 
     pub fn switch_tab(&mut self, tab: Tab) {
         self.active_tab = tab;
-        self.scroll = 0; // Reset text scroll
-        // Note: We preserve list selections (selected_task, selected_file)
+        self.scroll = 0;
     }
 
     pub fn scroll_up(&mut self) {
@@ -201,7 +204,6 @@ impl DashboardApp {
 }
 
 fn flatten_section(section: &Section, indent: usize, out: &mut Vec<FlatTask>) {
-    // Only show headers if they have content or we want to show empty sections
     if section.tasks.is_empty() && section.subsections.is_empty() {
         return;
     }
@@ -209,16 +211,16 @@ fn flatten_section(section: &Section, indent: usize, out: &mut Vec<FlatTask>) {
     out.push(FlatTask {
         id: section.id.clone(),
         text: section.heading.clone(),
-        status: TaskStatus::Pending, // Headers aren't tasks
+        status: TaskStatus::Pending,
         indent,
         is_header: true,
     });
 
     for task in &section.tasks {
         out.push(FlatTask {
-            id: task.path.clone(),
+            id: task.id.clone(),
             text: task.text.clone(),
-            status: task.status,
+            status: task.status.clone(),
             indent: indent + 1,
             is_header: false,
         });

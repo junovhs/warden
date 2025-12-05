@@ -7,19 +7,19 @@ pub mod view;
 pub mod watcher;
 
 use anyhow::Result;
-use config::state::ConfigApp;
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 use std::io;
 
-/// Launches the Mission Control Dashboard
+/// Run the dashboard TUI.
+///
 /// # Errors
-/// Returns error if terminal IO fails
+/// Returns error if terminal setup fails.
 pub fn run_dashboard() -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -28,30 +28,6 @@ pub fn run_dashboard() -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     let res = dashboard::run(&mut terminal);
-
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    res
-}
-
-/// Launches the Config Editor TUI
-/// # Errors
-/// Returns error if terminal IO fails
-pub fn run_config() -> Result<()> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let mut app = ConfigApp::new();
-    let res = app.run(&mut terminal);
 
     disable_raw_mode()?;
     execute!(
