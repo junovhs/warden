@@ -5,15 +5,13 @@ pub mod ui;
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode};
 use state::DashboardApp;
+use std::path::Path;
 use std::time::Duration;
 use crate::apply::{self, types::ApplyContext};
+use crate::roadmap::{cmd_handlers, Roadmap, TaskStatus};
 use crate::tui::runner::{spawn_checks, CheckEvent};
 use crate::tui::watcher::{spawn_watcher, WatcherEvent};
 
-/// Runs the dashboard main loop.
-///
-/// # Errors
-/// Returns error if drawing fails or event polling errors.
 pub fn run<B: ratatui::backend::Backend>(terminal: &mut ratatui::Terminal<B>) -> Result<()> {
     let mut app = DashboardApp::new()?;
     spawn_watcher(app.watch_tx.clone());
@@ -42,13 +40,6 @@ fn process_worker_messages(app: &mut DashboardApp) {
         match msg {
             CheckEvent::Log(line) => {
                 app.check_logs.push(line);
-                if app.active_tab == state::Tab::Checks {
-                    let target_idx = app.check_logs.len().saturating_sub(10);
-                    #[allow(clippy::cast_possible_truncation)]
-                    {
-                        app.scroll = target_idx as u16;
-                    }
-                }
             }
             CheckEvent::Finished(_) => {
                 app.check_running = false;
@@ -105,26 +96,22 @@ fn handle_popup_input(app: &mut DashboardApp, key: KeyCode) {
 
 fn apply_payload(app: &mut DashboardApp, content: &str) {
     app.log_system("Applying payload...");
-    
-    // We need a Config to create context. app.config holds it but inside TUI structs.
-    // Let's just load a fresh one for the Apply logic to ensure safety/freshness.
     let mut config = crate::config::Config::new();
     config.load_local_config();
     
-    let ctx = ApplyContext {
-        config: &config,
-        force: true, // Force true because user said 'y' in TUI
-        dry_run: false,
-    };
+    let ctx = ApplyContext { config: &config, force: true, dry_run: false };
 
     match apply::process_input(content, &ctx) {
         Ok(outcome) => {
             app.log_system(format!("Apply complete: {outcome:?}"));
-            // Trigger checks automatically after apply
+            // Reload roadmap as it might have changed
+            app.roadmap = Roadmap::from_file(Path::new("ROADMAP.md")).ok();
+            app.refresh_flat_roadmap();
+            
             app.switch_tab(state::Tab::Checks);
             app.check_running = true;
             app.check_logs.clear();
-            app.check_logs.push("Running post-apply verification...".into());
+            app.check_logs.push("Running verification...".into());
             spawn_checks(app.check_tx.clone());
         }
         Err(e) => app.log_system(format!("Apply failed: {e}")),
@@ -155,29 +142,59 @@ fn route_tab_input(app: &mut DashboardApp, key: KeyCode) {
     match app.active_tab {
         state::Tab::Config => app.config.handle_input(key),
         state::Tab::Checks => handle_checks_input(app, key),
-        state::Tab::Roadmap => handle_scroll(app, key),
+        state::Tab::Roadmap => handle_roadmap_input(app, key),
         _ => {}
     }
 }
 
 fn handle_checks_input(app: &mut DashboardApp, key: KeyCode) {
-    match key {
-        KeyCode::Char('r') => {
-            if !app.check_running {
-                app.check_running = true;
-                app.check_logs.clear();
-                app.check_logs.push("Starting checks...".into());
-                spawn_checks(app.check_tx.clone());
-            }
-        }
-        _ => handle_scroll(app, key),
+    if key == KeyCode::Char('r') && !app.check_running {
+        app.check_running = true;
+        app.check_logs.clear();
+        app.check_logs.push("Starting checks...".into());
+        spawn_checks(app.check_tx.clone());
     }
 }
 
-fn handle_scroll(app: &mut DashboardApp, key: KeyCode) {
+fn handle_roadmap_input(app: &mut DashboardApp, key: KeyCode) {
     match key {
         KeyCode::Char('j') | KeyCode::Down => app.scroll_down(),
         KeyCode::Char('k') | KeyCode::Up => app.scroll_up(),
+        KeyCode::Char(' ') | KeyCode::Enter => toggle_roadmap_task(app),
         _ => {}
     }
+}
+
+fn toggle_roadmap_task(app: &mut DashboardApp) {
+    let Some(item) = app.flat_roadmap.get(app.selected_task) else { return; };
+    if item.is_header { return; }
+
+    let path = item.id.clone();
+    let new_status = if item.status == TaskStatus::Pending {
+        TaskStatus::Complete
+    } else {
+        TaskStatus::Pending
+    };
+
+    if update_roadmap_task(app, &path, new_status) {
+        app.log_system(format!("Updated task: {path}"));
+        app.refresh_flat_roadmap();
+    } else {
+        app.log_system(format!("Failed to update {path}"));
+    }
+}
+
+fn update_roadmap_task(app: &mut DashboardApp, path: &str, status: TaskStatus) -> bool {
+    let Some(ref mut roadmap) = app.roadmap else { return false; };
+    
+    let res = match status {
+        TaskStatus::Complete => cmd_handlers::handle_check(roadmap, path),
+        TaskStatus::Pending => cmd_handlers::handle_uncheck(roadmap, path),
+    };
+
+    if matches!(res, crate::roadmap::ApplyResult::Success(_)) {
+        let _ = roadmap.save(Path::new("ROADMAP.md"));
+        return true;
+    }
+    false
 }

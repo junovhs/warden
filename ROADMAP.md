@@ -632,7 +632,7 @@
 - [x] **Consolidation (Mission Control)" "TUI: Unified Dashboard** (Single entry point `slopchop dashboard`)"**
 - [x] **Consolidation (Mission Control)" "TUI: Check Runner** (Live test/lint output in pane)"**
 - [ ] **Consolidation (Mission Control)" "TUI: Roadmap Explorer** (Navigate and check tasks interactively)"**
-- [ ] **Consolidation (Mission Control)" "TUI: Log Stream** (Replace stdout scrolling)"**
+- [x] **Consolidation (Mission Control)" "TUI: Log Stream** (Replace stdout scrolling)"**
 
 ## v0.8.0 - Dependency Graph ?
 - [ ] **- Dependency Graph ?" "**slopchop watch command** <!-- test: tests/cli_watch.rs::test_watch_starts -->"**

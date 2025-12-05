@@ -1,19 +1,20 @@
 // src/tui/dashboard/ui.rs
 use super::state::{DashboardApp, Tab};
+use crate::roadmap::TaskStatus;
 use crate::tui::config::view as config_view;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
+use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Tabs};
 use ratatui::Frame;
 
 pub fn draw(f: &mut Frame, app: &mut DashboardApp) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(0),    // Main Content
-            Constraint::Length(3), // Footer
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(3),
         ])
         .split(f.area());
 
@@ -54,7 +55,7 @@ fn draw_header(f: &mut Frame, app: &DashboardApp, area: Rect) {
     f.render_widget(tabs, layout[1]);
 }
 
-fn draw_main(f: &mut Frame, app: &DashboardApp, area: Rect) {
+fn draw_main(f: &mut Frame, app: &mut DashboardApp, area: Rect) {
     match app.active_tab {
         Tab::Roadmap => draw_roadmap(f, app, area),
         Tab::Checks => draw_checks(f, app, area),
@@ -64,6 +65,44 @@ fn draw_main(f: &mut Frame, app: &DashboardApp, area: Rect) {
     }
 }
 
+fn draw_roadmap(f: &mut Frame, app: &mut DashboardApp, area: Rect) {
+    let items: Vec<ListItem> = app
+        .flat_roadmap
+        .iter()
+        .map(|item| {
+            let indent = "  ".repeat(item.indent);
+            if item.is_header {
+                ListItem::new(format!("{indent}{}", item.text))
+                    .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            } else {
+                let icon = match item.status {
+                    TaskStatus::Complete => "[x]",
+                    TaskStatus::Pending => "[ ]",
+                };
+                let color = if item.status == TaskStatus::Complete {
+                    Color::Green
+                } else {
+                    Color::White
+                };
+                ListItem::new(format!("{indent}{icon} {}", item.text)).style(Style::default().fg(color))
+            }
+        })
+        .collect();
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" [ FLIGHT PLAN ] ");
+
+    let list = List::new(items)
+        .block(block)
+        .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
+
+    let mut state = ListState::default();
+    state.select(Some(app.selected_task));
+    
+    f.render_stateful_widget(list, area, &mut state);
+}
+
 fn draw_checks(f: &mut Frame, app: &DashboardApp, area: Rect) {
     let status_color = if app.check_running {
         Color::Yellow
@@ -71,23 +110,20 @@ fn draw_checks(f: &mut Frame, app: &DashboardApp, area: Rect) {
         Color::Green
     };
     
-    let title = if app.check_running { 
-        " [ CHECKS: RUNNING... ] " 
-    } else { 
-        " [ CHECKS: IDLE ] " 
-    };
-
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(status_color))
-        .title(title);
+        .title(if app.check_running { " [ RUNNING ] " } else { " [ IDLE ] " });
 
     let text = app.check_logs.join("\n");
+    let lines = text.lines().count();
+    let height = area.height as usize;
+    
+    // Allow truncation for TUI display logic
+    #[allow(clippy::cast_possible_truncation)]
+    let scroll = if lines > height { (lines - height) as u16 } else { 0 };
 
-    let p = Paragraph::new(text)
-        .block(block)
-        .scroll((app.scroll, 0));
-
+    let p = Paragraph::new(text).block(block).scroll((scroll, 0));
     f.render_widget(p, area);
 }
 
@@ -101,24 +137,6 @@ fn draw_logs(f: &mut Frame, app: &DashboardApp, area: Rect) {
     f.render_widget(p, area);
 }
 
-fn draw_roadmap(f: &mut Frame, app: &DashboardApp, area: Rect) {
-    let content = if let Some(r) = &app.roadmap {
-        r.compact_state()
-    } else {
-        "No ROADMAP.md found.".to_string()
-    };
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(" [ FLIGHT PLAN ] ");
-
-    let p = Paragraph::new(content)
-        .block(block)
-        .scroll((app.scroll, 0));
-
-    f.render_widget(p, area);
-}
-
 fn draw_placeholder(f: &mut Frame, app: &DashboardApp, area: Rect) {
     let content = format!("{:?} View (Coming Soon)", app.active_tab);
     let block = Block::default()
@@ -126,30 +144,25 @@ fn draw_placeholder(f: &mut Frame, app: &DashboardApp, area: Rect) {
         .title(format!(" [{:?}] ", app.active_tab));
 
     f.render_widget(
-        Paragraph::new(content)
-            .block(block)
-            .alignment(Alignment::Center),
+        Paragraph::new(content).block(block).alignment(Alignment::Center),
         area,
     );
 }
 
 fn draw_footer(f: &mut Frame, app: &DashboardApp, area: Rect) {
     let mut controls = vec![
-        Span::raw(" [1-5] Navigate | [j/k] Scroll | "),
+        Span::raw(" [1-5] Navigate | "),
         Span::styled(" [q] Quit ", Style::default().add_modifier(Modifier::BOLD)),
     ];
 
-    if app.active_tab == Tab::Checks {
-        controls.insert(0, Span::styled(
-            " [r] Run Checks | ", 
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
-        ));
+    match app.active_tab {
+        Tab::Roadmap => controls.insert(1, Span::raw(" [j/k] Select | [SPACE] Toggle | ")),
+        Tab::Checks => controls.insert(1, Span::raw(" [r] Run Checks | ")),
+        _ => {}
     }
 
-    let text = Line::from(controls);
-
     f.render_widget(
-        Paragraph::new(text)
+        Paragraph::new(Line::from(controls))
             .block(Block::default().borders(Borders::ALL))
             .alignment(Alignment::Center),
         area,
@@ -167,10 +180,7 @@ fn draw_popup(f: &mut Frame, area: Rect) {
 
     let content = "SlopChop Protocol detected in clipboard.\n\nApply changes?\n\n[y] Apply & Verify\n[n] Discard";
     
-    let p = Paragraph::new(content)
-        .block(block)
-        .alignment(Alignment::Center);
-
+    let p = Paragraph::new(content).block(block).alignment(Alignment::Center);
     f.render_widget(p, popup_area);
 }
 
