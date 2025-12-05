@@ -1,6 +1,7 @@
 // src/cli/handlers.rs
 //! Command handlers for the slopchop CLI.
 
+use std::io::{self, Write};
 use std::path::Path;
 use std::process::{self, Command, Stdio};
 
@@ -12,8 +13,16 @@ use crate::config::Config;
 use crate::context::{self, ContextOptions};
 use crate::pack::{self, OutputFormat, PackOptions};
 use crate::prompt::PromptGenerator;
-use crate::spinner::Spinner;
 use crate::trace::{self, TraceOptions};
+use crate::tui;
+
+/// Runs the mission control dashboard.
+/// 
+/// # Errors
+/// Returns error if TUI initialization fails.
+pub fn handle_dashboard() -> Result<()> {
+    tui::run_dashboard()
+}
 
 /// Runs the check pipeline.
 pub fn handle_check() {
@@ -154,24 +163,19 @@ fn run_pipeline(name: &str) {
 }
 
 fn exec_cmd_filtered(cmd: &str) -> bool {
-    // Spinner starts on a new line and handles animation
-    let sp = Spinner::start(cmd);
+    print!("   {} {} ", ">".blue(), cmd.dimmed());
+    let _ = io::stdout().flush();
 
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some((prog, args)) = parts.split_first() else {
-        sp.stop(true);
+        println!("{}", "ok".green());
         return true;
     };
 
-    let result = execute_command(prog, args);
-    match result {
-        Ok(output) => {
-            let success = output.status.success();
-            sp.stop(success);
-            handle_command_output(success, &output)
-        }
+    match execute_command(prog, args) {
+        Ok(output) => handle_command_output(cmd, &output),
         Err(e) => {
-            sp.stop(false);
+            println!("{}", "err".red());
             eprintln!("     {} {e}", "error:".red());
             false
         }
@@ -186,23 +190,24 @@ fn execute_command(prog: &str, args: &[&str]) -> std::io::Result<std::process::O
         .output()
 }
 
-fn handle_command_output(success: bool, output: &std::process::Output) -> bool {
-    if success {
+fn handle_command_output(cmd: &str, output: &std::process::Output) -> bool {
+    if output.status.success() {
+        println!("{}", "ok".green());
         return true;
     }
 
+    println!("{}", "err".red());
     let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    print_failure_details(&stdout, &stderr);
+    print_failure_details(cmd, &stdout, &stderr);
     false
 }
 
-fn print_failure_details(stdout: &str, stderr: &str) {
-    // Determine type of error from output content heuristics
-    if stdout.contains("running") && stdout.contains("test") {
+fn print_failure_details(cmd: &str, stdout: &str, stderr: &str) {
+    if cmd.contains("cargo test") {
         print_test_failures(stdout, stderr);
-    } else if stderr.contains("error:") || stderr.contains("warning:") {
+    } else if cmd.contains("clippy") {
         print_clippy_errors(stderr);
     } else {
         print_generic_error(stdout, stderr);

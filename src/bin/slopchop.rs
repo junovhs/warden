@@ -44,6 +44,7 @@ enum Commands {
         commit: bool,
     },
     Config,
+    Dashboard, // Mission Control
     #[command(subcommand)]
     Roadmap(RoadmapCommand),
     Pack {
@@ -123,9 +124,11 @@ fn dispatch_command(cmd: &Commands) -> Result<()> {
         | Commands::Map { .. }
         | Commands::Context { .. } => dispatch_analysis(cmd),
 
-        Commands::Check | Commands::Fix | Commands::Clean { .. } | Commands::Config => {
-            dispatch_maintenance(cmd)
-        }
+        Commands::Check
+        | Commands::Fix
+        | Commands::Clean { .. }
+        | Commands::Config
+        | Commands::Dashboard => dispatch_maintenance(cmd),
 
         Commands::Apply | Commands::Prompt { .. } | Commands::Roadmap(_) => dispatch_tools(cmd),
     }
@@ -142,6 +145,7 @@ fn dispatch_maintenance(cmd: &Commands) -> Result<()> {
             Ok(())
         }
         Commands::Config => slopchop_core::tui::run_config(),
+        Commands::Dashboard => cli::handle_dashboard(),
         Commands::Clean { commit } => slopchop_core::clean::run(*commit),
         _ => unreachable!(),
     }
@@ -257,6 +261,6 @@ fn ensure_config_exists() {
     let proj = project::ProjectType::detect();
     let content = project::generate_toml(proj, project::Strictness::Standard);
     if fs::write("slopchop.toml", &content).is_ok() {
-        eprintln!("{}", "✨ Created slopchop.toml".dimmed());
+        eprintln!("{}", "? Created slopchop.toml".dimmed());
     }
-}
+}
