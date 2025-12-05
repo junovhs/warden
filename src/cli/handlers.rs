@@ -58,7 +58,7 @@ pub fn handle_context(verbose: bool, copy: bool) -> Result<()> {
 
     if copy {
         crate::clipboard::copy_to_clipboard(&output)?;
-        println!("{}", "� Context map copied to clipboard".green());
+        println!("{}", "? Context map copied to clipboard".green());
     } else {
         println!("{output}");
     }
@@ -77,7 +77,7 @@ pub fn handle_prompt(copy: bool) -> Result<()> {
 
     if copy {
         crate::clipboard::copy_to_clipboard(&prompt)?;
-        println!("{}", "� Copied to clipboard".green());
+        println!("{}", "? Copied to clipboard".green());
     } else {
         println!("{prompt}");
     }
@@ -143,22 +143,23 @@ fn run_pipeline(name: &str) {
         process::exit(1);
     };
 
-    println!("{} Running '{}' pipeline...", "?".cyan(), name);
+    println!("{} Running '{}' pipeline...", ">".cyan(), name);
     for cmd in commands {
         if !exec_cmd_filtered(cmd) {
             process::exit(1);
         }
     }
-    println!("{} All checks passed!", "?".green().bold());
+    
+    println!("{}", "? All checks passed!".green().bold());
 }
 
 fn exec_cmd_filtered(cmd: &str) -> bool {
-    print!("   {} {} ", "".blue(), cmd.dimmed());
+    print!("   {} {} ", ">".blue(), cmd.dimmed());
     let _ = io::stdout().flush();
 
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some((prog, args)) = parts.split_first() else {
-        println!("{}", "�".green());
+        println!("{}", "?".green());
         return true;
     };
 
@@ -182,7 +183,7 @@ fn execute_command(prog: &str, args: &[&str]) -> std::io::Result<std::process::O
 
 fn handle_command_output(cmd: &str, output: &std::process::Output) -> bool {
     if output.status.success() {
-        println!("{}", "�".green());
+        println!("{}", "?".green());
         return true;
     }
 
