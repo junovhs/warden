@@ -1,6 +1,7 @@
 // src/tui/mod.rs
 pub mod config;
 pub mod dashboard;
+pub mod runner;
 pub mod state;
 pub mod view;
 
