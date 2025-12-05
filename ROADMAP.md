@@ -241,7 +241,7 @@
 ### Command Parsing
 - [x] **===ROADMAP=== block detection** <!-- test: tests/integration_roadmap.rs::test_parse_extracts_from_larger_text -->
 - [x] **CHECK command** <!-- test: tests/integration_roadmap.rs::test_parse_check_command -->
-- [ ] **UNCHECK command** <!-- test: tests/integration_roadmap.rs::test_parse_uncheck_command -->
+- [x] **UNCHECK command** <!-- test: tests/integration_roadmap.rs::test_parse_uncheck_command -->
 - [x] **ADD command** <!-- test: tests/integration_roadmap.rs::test_parse_multiple_commands -->
 - [x] **ADD with AFTER** <!-- test: tests/integration_roadmap.rs::test_parse_add_with_after -->
 - [x] **UPDATE command** <!-- test: tests/unit_roadmap.rs::test_update_command -->
