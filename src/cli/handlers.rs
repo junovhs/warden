@@ -1,6 +1,7 @@
 // src/cli/handlers.rs
 //! Command handlers for the slopchop CLI.
 
+use std::io::{self, Write};
 use std::path::Path;
 use std::process::{self, Command, Stdio};
 
@@ -148,11 +149,12 @@ fn run_pipeline(name: &str) {
             process::exit(1);
         }
     }
-    println!("{} All checks passed!", "�".green().bold());
+    println!("{} All checks passed!", "?".green().bold());
 }
 
 fn exec_cmd_filtered(cmd: &str) -> bool {
-    print!("   {} {} ", "?".blue(), cmd.dimmed());
+    print!("   {} {} ", "".blue(), cmd.dimmed());
+    let _ = io::stdout().flush();
 
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let Some((prog, args)) = parts.split_first() else {
