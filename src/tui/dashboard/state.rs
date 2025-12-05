@@ -220,7 +220,7 @@ fn flatten_section(section: &Section, indent: usize, out: &mut Vec<FlatTask>) {
         out.push(FlatTask {
             id: task.id.clone(),
             text: task.text.clone(),
-            status: task.status.clone(),
+            status: task.status,
             indent: indent + 1,
             is_header: false,
         });

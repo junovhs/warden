@@ -20,22 +20,25 @@ pub fn run<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
 
     while app.running {
         terminal.draw(|f| ui::draw(f, &mut app))?;
-
-        if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    handle_key(&mut app, key.code);
-                }
-            }
-        }
-
+        handle_input(&mut app)?;
         poll_events(&mut app);
     }
 
     Ok(())
 }
 
-fn handle_key(app: &mut DashboardApp, code: KeyCode) {
+fn handle_input(app: &mut DashboardApp) -> Result<()> {
+    if event::poll(Duration::from_millis(100))? {
+        if let Event::Key(key) = event::read()? {
+            if key.kind == KeyEventKind::Press {
+                process_key(app, key.code);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn process_key(app: &mut DashboardApp, code: KeyCode) {
     if app.show_popup {
         handle_popup_key(app, code);
         return;
@@ -43,14 +46,20 @@ fn handle_key(app: &mut DashboardApp, code: KeyCode) {
 
     match code {
         KeyCode::Char('q') => app.running = false,
+        KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
+        KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
+        KeyCode::Char('r') => handle_refresh(app),
+        c => handle_tab_switch(app, c),
+    }
+}
+
+fn handle_tab_switch(app: &mut DashboardApp, code: KeyCode) {
+    match code {
         KeyCode::Char('1') => app.switch_tab(state::Tab::Roadmap),
         KeyCode::Char('2') => app.switch_tab(state::Tab::Checks),
         KeyCode::Char('3') => app.switch_tab(state::Tab::Context),
         KeyCode::Char('4') => app.switch_tab(state::Tab::Config),
         KeyCode::Char('5') => app.switch_tab(state::Tab::Logs),
-        KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
-        KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
-        KeyCode::Char('r') => handle_refresh(app),
         _ => {}
     }
 }
@@ -74,7 +83,8 @@ fn handle_popup_key(app: &mut DashboardApp, code: KeyCode) {
 fn handle_refresh(app: &mut DashboardApp) {
     match app.active_tab {
         state::Tab::Roadmap => {
-            app.roadmap = crate::roadmap::Roadmap::from_file(std::path::Path::new("ROADMAP.md")).ok();
+            app.roadmap =
+                crate::roadmap::Roadmap::from_file(std::path::Path::new("ROADMAP.md")).ok();
             app.refresh_flat_roadmap();
             app.log_system("Roadmap refreshed.");
         }
@@ -104,7 +114,11 @@ fn poll_events(app: &mut DashboardApp) {
             }
             crate::tui::runner::CheckEvent::Finished(success) => {
                 app.check_running = false;
-                let msg = if success { "Checks passed!" } else { "Checks failed." };
+                let msg = if success {
+                    "Checks passed!"
+                } else {
+                    "Checks failed."
+                };
                 app.log_system(msg);
             }
         }
