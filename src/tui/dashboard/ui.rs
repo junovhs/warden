@@ -4,7 +4,7 @@ use crate::tui::config::view as config_view;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Tabs};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs};
 use ratatui::Frame;
 
 pub fn draw(f: &mut Frame, app: &mut DashboardApp) {
@@ -20,6 +20,10 @@ pub fn draw(f: &mut Frame, app: &mut DashboardApp) {
     draw_header(f, app, chunks[0]);
     draw_main(f, app, chunks[1]);
     draw_footer(f, app, chunks[2]);
+
+    if app.show_popup {
+        draw_popup(f, f.area());
+    }
 }
 
 fn draw_header(f: &mut Frame, app: &DashboardApp, area: Rect) {
@@ -55,7 +59,8 @@ fn draw_main(f: &mut Frame, app: &DashboardApp, area: Rect) {
         Tab::Roadmap => draw_roadmap(f, app, area),
         Tab::Checks => draw_checks(f, app, area),
         Tab::Config => config_view::draw_embed(f, &app.config, area),
-        _ => draw_placeholder(f, app, area),
+        Tab::Logs => draw_logs(f, app, area),
+        Tab::Context => draw_placeholder(f, app, area),
     }
 }
 
@@ -77,14 +82,22 @@ fn draw_checks(f: &mut Frame, app: &DashboardApp, area: Rect) {
         .border_style(Style::default().fg(status_color))
         .title(title);
 
-    // Join logs with newlines for now. 
-    // Optimization: In a real TUI we'd pass lines directly to List or Paragraph.
     let text = app.check_logs.join("\n");
 
     let p = Paragraph::new(text)
         .block(block)
         .scroll((app.scroll, 0));
 
+    f.render_widget(p, area);
+}
+
+fn draw_logs(f: &mut Frame, app: &DashboardApp, area: Rect) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" [ SYSTEM LOGS ] ");
+
+    let text = app.system_logs.join("\n");
+    let p = Paragraph::new(text).block(block);
     f.render_widget(p, area);
 }
 
@@ -141,4 +154,42 @@ fn draw_footer(f: &mut Frame, app: &DashboardApp, area: Rect) {
             .alignment(Alignment::Center),
         area,
     );
+}
+
+fn draw_popup(f: &mut Frame, area: Rect) {
+    let popup_area = centered_rect(60, 20, area);
+    f.render_widget(Clear, popup_area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" ?? INCOMING PAYLOAD ")
+        .style(Style::default().bg(Color::DarkGray).fg(Color::White));
+
+    let content = "SlopChop Protocol detected in clipboard.\n\nApply changes?\n\n[y] Apply & Verify\n[n] Discard";
+    
+    let p = Paragraph::new(content)
+        .block(block)
+        .alignment(Alignment::Center);
+
+    f.render_widget(p, popup_area);
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }

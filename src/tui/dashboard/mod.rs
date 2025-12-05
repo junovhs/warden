@@ -6,7 +6,9 @@ use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode};
 use state::DashboardApp;
 use std::time::Duration;
+use crate::apply::{self, types::ApplyContext};
 use crate::tui::runner::{spawn_checks, CheckEvent};
+use crate::tui::watcher::{spawn_watcher, WatcherEvent};
 
 /// Runs the dashboard main loop.
 ///
@@ -14,11 +16,13 @@ use crate::tui::runner::{spawn_checks, CheckEvent};
 /// Returns error if drawing fails or event polling errors.
 pub fn run<B: ratatui::backend::Backend>(terminal: &mut ratatui::Terminal<B>) -> Result<()> {
     let mut app = DashboardApp::new()?;
+    spawn_watcher(app.watch_tx.clone());
 
     while app.running {
         terminal.draw(|f| ui::draw(f, &mut app))?;
         handle_event(&mut app)?;
         process_worker_messages(&mut app);
+        process_watcher_messages(&mut app);
     }
     Ok(())
 }
@@ -29,7 +33,6 @@ fn handle_event(app: &mut DashboardApp) -> Result<()> {
             process_key(app, key.code);
         }
     }
-    // Maintain internal state of sub-apps
     app.config.check_message_expiry();
     Ok(())
 }
@@ -39,10 +42,7 @@ fn process_worker_messages(app: &mut DashboardApp) {
         match msg {
             CheckEvent::Log(line) => {
                 app.check_logs.push(line);
-                // Auto-scroll to bottom if looking at checks
                 if app.active_tab == state::Tab::Checks {
-                    // Simple heuristic: set scroll to length
-                    // Capping at u16 max is acceptable for UI scroll
                     let target_idx = app.check_logs.len().saturating_sub(10);
                     #[allow(clippy::cast_possible_truncation)]
                     {
@@ -58,7 +58,24 @@ fn process_worker_messages(app: &mut DashboardApp) {
     }
 }
 
+fn process_watcher_messages(app: &mut DashboardApp) {
+    while let Ok(msg) = app.watch_rx.try_recv() {
+        match msg {
+            WatcherEvent::PayloadDetected(content) => {
+                app.pending_payload = Some(content);
+                app.show_popup = true;
+                app.log_system("Payload detected in clipboard.");
+            }
+        }
+    }
+}
+
 fn process_key(app: &mut DashboardApp, key: KeyCode) {
+    if app.show_popup {
+        handle_popup_input(app, key);
+        return;
+    }
+
     if handle_system(app, key) {
         return;
     }
@@ -66,6 +83,52 @@ fn process_key(app: &mut DashboardApp, key: KeyCode) {
         return;
     }
     route_tab_input(app, key);
+}
+
+fn handle_popup_input(app: &mut DashboardApp, key: KeyCode) {
+    match key {
+        KeyCode::Char('y') | KeyCode::Enter => {
+            if let Some(content) = app.pending_payload.clone() {
+                apply_payload(app, &content);
+            }
+            app.show_popup = false;
+            app.pending_payload = None;
+        }
+        KeyCode::Char('n') | KeyCode::Esc => {
+            app.show_popup = false;
+            app.pending_payload = None;
+            app.log_system("Payload discarded.");
+        }
+        _ => {}
+    }
+}
+
+fn apply_payload(app: &mut DashboardApp, content: &str) {
+    app.log_system("Applying payload...");
+    
+    // We need a Config to create context. app.config holds it but inside TUI structs.
+    // Let's just load a fresh one for the Apply logic to ensure safety/freshness.
+    let mut config = crate::config::Config::new();
+    config.load_local_config();
+    
+    let ctx = ApplyContext {
+        config: &config,
+        force: true, // Force true because user said 'y' in TUI
+        dry_run: false,
+    };
+
+    match apply::process_input(content, &ctx) {
+        Ok(outcome) => {
+            app.log_system(format!("Apply complete: {outcome:?}"));
+            // Trigger checks automatically after apply
+            app.switch_tab(state::Tab::Checks);
+            app.check_running = true;
+            app.check_logs.clear();
+            app.check_logs.push("Running post-apply verification...".into());
+            spawn_checks(app.check_tx.clone());
+        }
+        Err(e) => app.log_system(format!("Apply failed: {e}")),
+    }
 }
 
 fn handle_system(app: &mut DashboardApp, key: KeyCode) -> bool {

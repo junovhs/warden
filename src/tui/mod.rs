@@ -4,6 +4,7 @@ pub mod dashboard;
 pub mod runner;
 pub mod state;
 pub mod view;
+pub mod watcher;
 
 use anyhow::Result;
 use config::state::ConfigApp;
