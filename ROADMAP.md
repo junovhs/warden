@@ -604,3 +604,12 @@
 - **Full LSP implementation** — Use tree-sitter queries, not language servers
 - **Multi-repo support** — One project at a time
 - **Incremental graph updates** — Rebuild on each run (fast enough)
+
+## v0.99.0 — Future
+- [ ] ****
+- [ ] **New feature**
+- [ ] **New feature**
+
+## v0.99.0 — Future
+
+## v0.99.0 — Future
