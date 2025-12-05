@@ -1,5 +1,6 @@
 // src/tui/dashboard/state.rs
 use crate::roadmap::Roadmap;
+use crate::tui::config::state::ConfigApp;
 use anyhow::Result;
 use std::path::Path;
 
@@ -18,17 +19,18 @@ pub struct DashboardApp {
     pub version: String,
     pub roadmap: Option<Roadmap>,
     pub scroll: u16,
+    pub config: ConfigApp,
 }
 
 impl Default for DashboardApp {
     fn default() -> Self {
-        // Default is used for tests or fallbacks, suppress error
         Self::new().unwrap_or_else(|_| Self {
             active_tab: Tab::Roadmap,
             running: true,
             version: env!("CARGO_PKG_VERSION").to_string(),
             roadmap: None,
             scroll: 0,
+            config: ConfigApp::new(),
         })
     }
 }
@@ -47,12 +49,13 @@ impl DashboardApp {
             version: env!("CARGO_PKG_VERSION").to_string(),
             roadmap,
             scroll: 0,
+            config: ConfigApp::new(),
         })
     }
 
     pub fn switch_tab(&mut self, tab: Tab) {
         self.active_tab = tab;
-        self.scroll = 0; // Reset scroll on tab switch
+        self.scroll = 0;
     }
 
     pub fn scroll_up(&mut self) {

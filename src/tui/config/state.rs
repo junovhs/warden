@@ -41,7 +41,7 @@ impl ConfigApp {
         }
     }
 
-    /// Runs the config TUI loop.
+    /// Runs the config TUI loop (Standalone mode).
     ///
     /// # Errors
     /// Returns error if terminal IO or event polling fails.
@@ -66,7 +66,7 @@ impl ConfigApp {
         Ok(())
     }
 
-    fn check_message_expiry(&mut self) {
+    pub fn check_message_expiry(&mut self) {
         if let Some((_, time)) = self.saved_message {
             if time.elapsed() > Duration::from_secs(2) {
                 self.saved_message = None;
@@ -74,7 +74,7 @@ impl ConfigApp {
         }
     }
 
-    fn handle_input(&mut self, code: KeyCode) {
+    pub fn handle_input(&mut self, code: KeyCode) {
         match code {
             KeyCode::Char('q') | KeyCode::Esc => self.running = false,
             KeyCode::Up | KeyCode::Char('k') => self.move_cursor(-1),
@@ -123,4 +123,4 @@ impl ConfigApp {
             self.modified = false;
         }
     }
-}
+}

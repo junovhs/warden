@@ -27,6 +27,8 @@ fn handle_event(app: &mut DashboardApp) -> Result<()> {
             process_key(app, key.code);
         }
     }
+    // Maintain internal state of sub-apps
+    app.config.check_message_expiry();
     Ok(())
 }
 
@@ -37,10 +39,12 @@ fn process_key(app: &mut DashboardApp, key: KeyCode) {
     if handle_navigation(app, key) {
         return;
     }
-    handle_scroll(app, key);
+    route_tab_input(app, key);
 }
 
 fn handle_system(app: &mut DashboardApp, key: KeyCode) -> bool {
+    // If inside Config tab, 'q' might mean "leave dashboard" or "leave config mode".
+    // For now, consistent behavior: 'q' quits application.
     if matches!(key, KeyCode::Char('q') | KeyCode::Esc) {
         app.running = false;
         return true;
@@ -58,6 +62,14 @@ fn handle_navigation(app: &mut DashboardApp, key: KeyCode) -> bool {
         _ => return false,
     }
     true
+}
+
+fn route_tab_input(app: &mut DashboardApp, key: KeyCode) {
+    match app.active_tab {
+        state::Tab::Config => app.config.handle_input(key),
+        state::Tab::Roadmap => handle_scroll(app, key),
+        _ => {}
+    }
 }
 
 fn handle_scroll(app: &mut DashboardApp, key: KeyCode) {

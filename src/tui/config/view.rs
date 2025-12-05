@@ -62,6 +62,13 @@ pub fn draw(f: &mut Frame, app: &ConfigApp) {
     components::draw_footer(f, chunks[2], &pal);
 }
 
+/// Renders just the main content (Settings + Context), skipping header/footer.
+/// Used for embedding in Dashboard.
+pub fn draw_embed(f: &mut Frame, app: &ConfigApp, area: Rect) {
+    let pal = get_palette(app.preferences.theme);
+    draw_main(f, app, area, &pal);
+}
+
 fn draw_main(f: &mut Frame, app: &ConfigApp, area: Rect, pal: &Palette) {
     let layout = Layout::default()
         .direction(Direction::Horizontal)
@@ -70,4 +77,4 @@ fn draw_main(f: &mut Frame, app: &ConfigApp, area: Rect, pal: &Palette) {
 
     components::draw_settings_table(f, app, layout[0], pal);
     components::draw_context_panel(f, app, layout[1], pal);
-}
+}

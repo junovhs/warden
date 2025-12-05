@@ -1,5 +1,6 @@
 // src/tui/dashboard/ui.rs
 use super::state::{DashboardApp, Tab};
+use crate::tui::config::view as config_view;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -52,6 +53,7 @@ fn draw_header(f: &mut Frame, app: &DashboardApp, area: Rect) {
 fn draw_main(f: &mut Frame, app: &DashboardApp, area: Rect) {
     match app.active_tab {
         Tab::Roadmap => draw_roadmap(f, app, area),
+        Tab::Config => config_view::draw_embed(f, &app.config, area),
         _ => draw_placeholder(f, app, area),
     }
 }
