@@ -629,7 +629,7 @@
 ## v0.99.0 - Future
 
 ## TUI Consolidation (Mission Control)
-- [ ] **Consolidation (Mission Control)" "TUI: Unified Dashboard** (Single entry point `slopchop dashboard`)"**
+- [x] **Consolidation (Mission Control)" "TUI: Unified Dashboard** (Single entry point `slopchop dashboard`)"**
 - [ ] **Consolidation (Mission Control)" "TUI: Check Runner** (Live test/lint output in pane)"**
 - [ ] **Consolidation (Mission Control)" "TUI: Roadmap Explorer** (Navigate and check tasks interactively)"**
 - [ ] **Consolidation (Mission Control)" "TUI: Log Stream** (Replace stdout scrolling)"**

@@ -30,7 +30,11 @@ fn draw_header(f: &mut Frame, app: &DashboardApp, area: Rect) {
     let tabs = Tabs::new(vec!["ROADMAP", "CHECKS", "CONTEXT", "CONFIG", "LOGS"])
         .select(app.active_tab as usize)
         .block(Block::default().borders(Borders::ALL))
-        .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        .highlight_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )
         .divider("|");
 
     let layout = Layout::default()
@@ -46,14 +50,32 @@ fn draw_header(f: &mut Frame, app: &DashboardApp, area: Rect) {
 }
 
 fn draw_main(f: &mut Frame, app: &DashboardApp, area: Rect) {
-    let content = match app.active_tab {
-        Tab::Roadmap => "Roadmap View (Coming Soon)",
-        Tab::Checks => "Checks View (Coming Soon)",
-        Tab::Context => "Context View (Coming Soon)",
-        Tab::Config => "Config View (Coming Soon)",
-        Tab::Logs => "Logs View (Coming Soon)",
+    match app.active_tab {
+        Tab::Roadmap => draw_roadmap(f, app, area),
+        _ => draw_placeholder(f, app, area),
+    }
+}
+
+fn draw_roadmap(f: &mut Frame, app: &DashboardApp, area: Rect) {
+    let content = if let Some(r) = &app.roadmap {
+        r.compact_state()
+    } else {
+        "No ROADMAP.md found.".to_string()
     };
 
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(" [ FLIGHT PLAN ] ");
+
+    let p = Paragraph::new(content)
+        .block(block)
+        .scroll((app.scroll, 0));
+
+    f.render_widget(p, area);
+}
+
+fn draw_placeholder(f: &mut Frame, app: &DashboardApp, area: Rect) {
+    let content = format!("{:?} View (Coming Soon)", app.active_tab);
     let block = Block::default()
         .borders(Borders::ALL)
         .title(format!(" [{:?}] ", app.active_tab));
@@ -68,7 +90,7 @@ fn draw_main(f: &mut Frame, app: &DashboardApp, area: Rect) {
 
 fn draw_footer(f: &mut Frame, area: Rect) {
     let text = Line::from(vec![
-        Span::raw(" [1-5] Navigate | "),
+        Span::raw(" [1-5] Navigate | [j/k] Scroll | "),
         Span::styled(" [q] Quit ", Style::default().add_modifier(Modifier::BOLD)),
     ]);
 
