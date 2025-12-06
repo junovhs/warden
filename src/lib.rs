@@ -11,6 +11,7 @@ pub mod detection;
 pub mod discovery;
 pub mod error;
 pub mod graph;
+pub mod lang;
 pub mod pack;
 pub mod project;
 pub mod prompt;
