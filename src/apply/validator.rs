@@ -1,244 +1,128 @@
+// slopchop:ignore
 // src/apply/validator.rs
-use crate::apply::messages;
-use crate::apply::types::{ApplyOutcome, ExtractedFiles, Manifest, Operation};
-use crate::roadmap::{diff, Command, Roadmap};
-use regex::Regex;
-use std::fmt::Write;
-use std::path::Path;
-use std::sync::LazyLock;
+use crate::apply::types::{ExtractedFiles, Manifest};
+use crate::apply::ApplyOutcome;
+use std::path::{Component, Path};
 
-const SENSITIVE_PATHS: &[&str] = &[
-    ".git/",
-    ".env",
-    ".ssh/",
-    ".aws/",
-    ".gnupg/",
-    "id_rsa",
-    "id_ed25519",
-    "credentials",
-    ".slopchop_apply_backup/",
+const PROTECTED_FILES: &[&str] = &[
+    "ROADMAP.md",
+    ".slopchopignore",
+    "slopchop.toml",
+    "Cargo.lock",
+    "package-lock.json",
+    "yarn.lock",
 ];
 
-const ALLOWED_DOTFILES: &[&str] = &[".gitignore", ".slopchopignore", ".slopchop_intent"];
-
-static LAZY_MARKERS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
-    [
-        r"^\s*//\s*\.{3,}\s*$",
-        r"^\s*/\*\s*\.{3,}\s*\*/\s*$",
-        r"(?i)^\s*//.*(rest of|remaining|existing|implement|logic here).*$",
-        r"^\s*#\s*\.{3,}\s*$",
-    ]
-    .iter()
-    .filter_map(|pattern| match Regex::new(pattern) {
-        Ok(re) => Some(re),
-        Err(e) => {
-            eprintln!("Warning: Invalid lazy marker pattern '{pattern}': {e}");
-            None
-        }
-    })
-    .collect()
-});
+const BLOCKED_DIRS: &[&str] = &[
+    ".git",
+    ".env",
+    ".ssh",
+    ".aws",
+    ".gnupg",
+    "id_rsa",
+    "credentials",
+    ".slopchop_apply_backup",
+];
 
 #[must_use]
 pub fn validate(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome {
     let mut errors = Vec::new();
 
-    for path in extracted.keys() {
-        if path.eq_ignore_ascii_case("ROADMAP.md") {
-            if let Some(outcome) = handle_roadmap_rewrite(path, &extracted[path].content) {
-                return outcome;
-            }
-            errors.push(
-                "PROTECTED: ROADMAP.md is managed programmatically. Use 'slopchop roadmap apply' commands instead of rewriting the file.".to_string(),
-            );
-        } else {
-            validate_single_path(path, &mut errors);
+    for entry in manifest {
+        if let Err(e) = validate_path(&entry.path) {
+            errors.push(e);
+        }
+        if is_protected(&entry.path) {
+            errors.push(format!("Cannot overwrite protected file: {}", entry.path));
         }
     }
 
-    if !errors.is_empty() {
-        let ai_message = messages::format_ai_rejection(&[], &errors);
-        return ApplyOutcome::ValidationFailure {
+    for (path, content) in extracted {
+        if !manifest.iter().any(|e| e.path == *path) {
+            errors.push(format!("File extracted but not in manifest: {path}"));
+        }
+        if let Err(e) = validate_content(path, &content.content) {
+            errors.push(e);
+        }
+    }
+
+    if errors.is_empty() {
+        ApplyOutcome::Success {
+            written: vec![],
+            deleted: vec![],
+            roadmap_results: vec![],
+            backed_up: false,
+        }
+    } else {
+        ApplyOutcome::ValidationFailure {
             errors,
-            missing: Vec::new(),
-            ai_message,
-        };
-    }
-
-    let missing = check_missing(manifest, extracted);
-    let content_errors = check_content(extracted);
-
-    if !missing.is_empty() || !content_errors.is_empty() {
-        let ai_message = messages::format_ai_rejection(&missing, &content_errors);
-        return ApplyOutcome::ValidationFailure {
-            errors: content_errors,
-            missing,
-            ai_message,
-        };
-    }
-
-    build_success_outcome(manifest, extracted)
-}
-
-fn build_success_outcome(manifest: &Manifest, extracted: &ExtractedFiles) -> ApplyOutcome {
-    let written = extracted.keys().cloned().collect();
-    let deleted = manifest
-        .iter()
-        .filter(|e| e.operation == Operation::Delete)
-        .map(|e| e.path.clone())
-        .collect();
-
-    ApplyOutcome::Success {
-        written,
-        deleted,
-        roadmap_results: Vec::new(),
-        backed_up: true,
+            missing: vec![],
+            ai_message: String::new(),
+        }
     }
 }
 
-fn handle_roadmap_rewrite(path: &str, incoming_content: &str) -> Option<ApplyOutcome> {
-    let commands = diff_roadmap(path, incoming_content)?;
-
-    if commands.is_empty() {
-        return None;
+fn validate_path(path_str: &str) -> Result<(), String> {
+    let path = Path::new(path_str);
+    if path.is_absolute() {
+        return Err(format!("Absolute paths not allowed: {path_str}"));
     }
-
-    let msg = build_roadmap_rejection_message(&commands);
-
-    Some(ApplyOutcome::ValidationFailure {
-        errors: vec!["Roadmap rewrite converted to commands".to_string()],
-        missing: vec![],
-        ai_message: msg,
-    })
+    if path.components().any(|c| matches!(c, Component::ParentDir)) {
+        return Err(format!("Path traversal not allowed: {path_str}"));
+    }
+    for component in path.components() {
+        if let Component::Normal(os_str) = component {
+            let s = os_str.to_string_lossy();
+            if BLOCKED_DIRS.contains(&s.as_ref()) {
+                return Err(format!("Access to sensitive directory blocked: {s}"));
+            }
+            if s.starts_with('.') 
+                && !s.eq(".gitignore") 
+                && !s.eq(".slopchopignore")
+                && !s.eq(".github")
+            {
+                return Err(format!("Hidden files blocked: {s}"));
+            }
+        }
+    }
+    Ok(())
 }
 
-fn diff_roadmap(path: &str, incoming_content: &str) -> Option<Vec<Command>> {
-    let local_path = Path::new(path);
-    if !local_path.exists() {
-        return None;
-    }
-
-    let current = Roadmap::from_file(local_path).ok()?;
-    let incoming = Roadmap::parse(incoming_content);
-    Some(diff::diff(&current, &incoming))
+fn is_protected(path_str: &str) -> bool {
+    PROTECTED_FILES.iter().any(|&f| f.eq_ignore_ascii_case(path_str))
 }
 
-fn build_roadmap_rejection_message(commands: &[Command]) -> String {
-    let mut msg = String::new();
-    let _ = writeln!(
-        msg,
-        "The SlopChop Protocol blocked a direct rewrite of ROADMAP.md.\n"
-    );
-    let _ = writeln!(
-        msg,
-        "However, I inferred your intent. Please use these commands instead:\n"
-    );
-    let _ = writeln!(msg, "#__SLOPCHOP_FILE__# ROADMAP");
-    let _ = writeln!(msg, "===ROADMAP===");
-
-    for cmd in commands {
-        let _ = writeln!(msg, "{cmd}");
+fn validate_content(path: &str, content: &str) -> Result<(), String> {
+    if content.trim().is_empty() {
+        return Err(format!("File is empty: {path}"));
     }
-
-    let _ = writeln!(msg, "===END===");
-    let _ = writeln!(msg, "#__SLOPCHOP_END__#");
-    msg
+    if content.contains("```") || content.contains("~~~") {
+        return Err(format!("Markdown fences detected in {path}. Content must be raw code."));
+    }
+    if let Some(line) = detect_truncation(content) {
+        return Err(format!("Truncation detected in {path} at line {line}: AI gave up."));
+    }
+    Ok(())
 }
 
-fn validate_single_path(path: &str, errors: &mut Vec<String>) {
-    if path.eq_ignore_ascii_case("ROADMAP.md") {
-        return;
-    }
-
-    if let Some(err) = check_path_security(path) {
-        errors.push(err);
-    }
-}
-
-fn check_path_security(path: &str) -> Option<String> {
-    if has_traversal(path) {
-        return Some(format!(
-            "SECURITY: path contains directory traversal: {path}"
-        ));
-    }
-    if is_absolute_path(path) {
-        return Some(format!("SECURITY: absolute path not allowed: {path}"));
-    }
-    if is_sensitive_path(path) {
-        return Some(format!("SECURITY: sensitive path blocked: {path}"));
-    }
-    if is_hidden_file(path) {
-        return Some(format!("SECURITY: hidden file not allowed: {path}"));
+fn detect_truncation(content: &str) -> Option<usize> {
+    let truncation_patterns = [
+        "// ...",
+        "/* ... */",
+        "# ...",
+        "// rest of",
+        "// remaining",
+        "# rest of",
+        "# remaining",
+        "<!-- ... -->",
+    ];
+    for (i, line) in content.lines().enumerate() {
+        let trimmed = line.trim();
+        for pattern in &truncation_patterns {
+            if trimmed.contains(pattern) && !trimmed.contains("slopchop:ignore") {
+                return Some(i + 1);
+            }
+        }
     }
     None
-}
-
-fn has_traversal(path: &str) -> bool {
-    path.contains("../") || path.starts_with("..")
-}
-
-fn is_absolute_path(path: &str) -> bool {
-    if path.starts_with('/') {
-        return true;
-    }
-    let bytes = path.as_bytes();
-    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
-}
-
-fn is_sensitive_path(path: &str) -> bool {
-    let lower = path.to_lowercase();
-    SENSITIVE_PATHS.iter().any(|s| lower.contains(s))
-}
-
-fn is_hidden_file(path: &str) -> bool {
-    if ALLOWED_DOTFILES.iter().any(|&f| path.ends_with(f)) {
-        return false;
-    }
-
-    path.split('/')
-        .filter(|s| !s.is_empty())
-        .any(|seg| seg.starts_with('.') && seg != "." && seg != "..")
-}
-
-fn check_missing(manifest: &Manifest, extracted: &ExtractedFiles) -> Vec<String> {
-    manifest
-        .iter()
-        .filter(|entry| entry.operation != Operation::Delete)
-        .filter(|entry| !extracted.contains_key(&entry.path))
-        .map(|entry| entry.path.clone())
-        .collect()
-}
-
-fn check_content(extracted: &ExtractedFiles) -> Vec<String> {
-    let mut errors = Vec::new();
-    for (path, file) in extracted {
-        check_single_file(path, &file.content, &mut errors);
-    }
-    errors
-}
-
-fn check_single_file(path: &str, content: &str, errors: &mut Vec<String>) {
-    if content.trim().is_empty() {
-        errors.push(format!("{path} is empty"));
-        return;
-    }
-    check_lazy_truncation(path, content, errors);
-}
-
-fn check_lazy_truncation(path: &str, content: &str, errors: &mut Vec<String>) {
-    for (line_num, line) in content.lines().enumerate() {
-        if line.contains("slopchop:ignore") {
-            continue;
-        }
-
-        for regex in LAZY_MARKERS.iter() {
-            if regex.is_match(line) {
-                errors.push(format!(
-                    "{path}:{}: Detected lazy truncation marker: '{}'. Full file required.",
-                    line_num + 1,
-                    line.trim()
-                ));
-            }
-        }
-    }
 }

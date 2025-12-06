@@ -1,4 +1,3 @@
-// src/roadmap_v2/cli/display.rs
 use crate::roadmap_v2::types::{SectionStatus, TaskStatus, TaskStore};
 use crate::roadmap_v2::RoadmapCommand;
 use anyhow::{anyhow, Result};

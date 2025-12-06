@@ -1,4 +1,3 @@
-// src/apply/mod.rs
 pub mod extractor;
 pub mod git;
 pub mod manifest;
@@ -9,7 +8,7 @@ pub mod verification;
 pub mod writer;
 
 use crate::clipboard;
-use crate::roadmap;
+use crate::roadmap_v2;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use std::io::{self, Write};
@@ -114,15 +113,25 @@ fn apply_and_verify(content: &str, ctx: &ApplyContext, plan: Option<&str>) -> Re
 
     let mut outcome = writer::write_files(&manifest, &extracted, None)?;
 
-    // Handle roadmap updates
-    let roadmap_path = Path::new("ROADMAP.md");
+    // Handle roadmap updates using v2 system
+    // v2 uses slopchop.toml/tasks.toml, but we also support updating if commands are present
+    let roadmap_path = Path::new("slopchop.toml"); 
     let mut roadmap_results = Vec::new();
-    if roadmap_path.exists() {
-        match roadmap::handle_input(roadmap_path, content) {
-            Ok(results) => roadmap_results = results,
-            Err(e) => eprintln!("{} Roadmap update failed: {e}", "⚠️".yellow()),
+    
+    // We check for roadmap commands regardless of file existence, 
+    // handle_input will check for store existence.
+    match roadmap_v2::handle_input(roadmap_path, content) {
+        Ok(results) => roadmap_results = results,
+        Err(e) => {
+             // If it's just "no commands found" we ignore it, but handle_input returns empty vec
+             // If parsing fails or store load fails, we report it.
+             // We only log if it looks like they tried to do something.
+             if content.contains("===ROADMAP===") {
+                 eprintln!("{} Roadmap update failed: {e}", "⚠️".yellow());
+             }
         }
     }
+    
     if let ApplyOutcome::Success {
         roadmap_results: ref mut rr,
         ..
@@ -259,4 +268,3 @@ fn parse_manifest_step(content: &str) -> Result<Manifest, String> {
 fn extract_files_step(content: &str) -> Result<ExtractedFiles, String> {
     extractor::extract_files(content).map_err(|e| format!("Extraction Error: {e}"))
 }
-

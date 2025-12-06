@@ -1,206 +1,141 @@
 // src/tui/dashboard/ui.rs
-use super::state::{DashboardApp, Tab};
-use crate::roadmap::TaskStatus;
-use crate::tui::config::view as config_view;
-use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Tabs};
-use ratatui::Frame;
+use crate::types::FileReport;
+use crate::roadmap_v2::types::TaskStatus;
+use crate::tui::dashboard::state::{DashboardApp, Tab, TaskStatusFilter};
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph, Tabs},
+    Frame,
+};
 
 pub fn draw(f: &mut Frame, app: &mut DashboardApp) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-            Constraint::Length(3),
+            Constraint::Length(3), // Header/Tabs
+            Constraint::Min(0),    // Content
+            Constraint::Length(1), // Footer
         ])
         .split(f.area());
 
-    draw_header(f, app, chunks[0]);
-    draw_main(f, app, chunks[1]);
-    draw_footer(f, app, chunks[2]);
-
-    if app.show_popup {
-        draw_popup(f, f.area());
+    draw_tabs(f, app, chunks[0]);
+    
+    match app.active_tab {
+        Tab::Dashboard => draw_dashboard(f, app, chunks[1]),
+        Tab::Roadmap => draw_roadmap(f, app, chunks[1]),
+        Tab::Config => draw_config(f, app, chunks[1]),
+        Tab::Logs => draw_logs(f, app, chunks[1]),
     }
+
+    draw_footer(f, chunks[2]);
 }
 
-fn draw_header(f: &mut Frame, app: &DashboardApp, area: Rect) {
-    let title = Span::styled(
-        format!(" SLOPCHOP v{} ", app.version),
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-    );
+fn draw_tabs(f: &mut Frame, app: &DashboardApp, area: Rect) {
+    let titles: Vec<_> = ["Dashboard", "Roadmap", "Config", "Logs"]
+        .iter()
+        .map(|t| Line::from(Span::styled(*t, Style::default().fg(Color::Green))))
+        .collect();
 
-    let tabs = Tabs::new(vec!["ROADMAP", "CHECKS", "CONTEXT", "CONFIG", "LOGS"])
+    let tabs = Tabs::new(titles)
+        .block(Block::default().borders(Borders::ALL).title("SlopChop"))
         .select(app.active_tab as usize)
-        .block(Block::default().borders(Borders::ALL))
-        .highlight_style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )
-        .divider("|");
+        .highlight_style(Style::default().add_modifier(Modifier::BOLD).bg(Color::DarkGray));
+    
+    f.render_widget(tabs, area);
+}
 
-    let layout = Layout::default()
+fn draw_dashboard(f: &mut Frame, app: &DashboardApp, area: Rect) {
+    let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(20), Constraint::Min(0)])
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
-    f.render_widget(
-        Paragraph::new(title).block(Block::default().borders(Borders::ALL)),
-        layout[0],
-    );
-    f.render_widget(tabs, layout[1]);
+    // Left: Status
+    let status_text = if let Some(report) = &app.scan_report {
+        format!(
+            "Files: {}\nViolations: {}\nClean: {}",
+            report.files.len(),
+            report.files.iter().map(FileReport::violation_count).sum::<usize>(),
+            report.clean_file_count()
+        )
+    } else {
+        "Scanning...".to_string()
+    };
+
+    let status = Paragraph::new(status_text)
+        .block(Block::default().borders(Borders::ALL).title("Status"));
+    f.render_widget(status, chunks[0]);
+
+    // Right: Recent logs
+    draw_logs_mini(f, app, chunks[1]);
 }
 
-fn draw_main(f: &mut Frame, app: &mut DashboardApp, area: Rect) {
-    match app.active_tab {
-        Tab::Roadmap => draw_roadmap(f, app, area),
-        Tab::Checks => draw_checks(f, app, area),
-        Tab::Context => draw_context(f, app, area),
-        Tab::Config => config_view::draw_embed(f, &app.config, area),
-        Tab::Logs => draw_logs(f, app, area),
-    }
-}
+fn draw_roadmap(f: &mut Frame, app: &DashboardApp, area: Rect) {
+    let Some(store) = &app.roadmap else {
+        let p = Paragraph::new("No roadmap loaded (slopchop.toml)")
+            .block(Block::default().borders(Borders::ALL));
+        f.render_widget(p, area);
+        return;
+    };
 
-fn draw_roadmap(f: &mut Frame, app: &mut DashboardApp, area: Rect) {
-    let items: Vec<ListItem> = app
-        .flat_roadmap
-        .iter()
-        .map(|item| {
-            let indent = "  ".repeat(item.indent);
-            if item.is_header {
-                ListItem::new(format!("{indent}{}", item.text))
-                    .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-            } else {
-                let icon = match item.status {
-                    TaskStatus::Complete => "[x]",
-                    TaskStatus::Pending => "[ ]",
-                };
-                let color = if item.status == TaskStatus::Complete {
-                    Color::Green
-                } else {
-                    Color::White
-                };
-                ListItem::new(format!("{indent}{icon} {}", item.text)).style(Style::default().fg(color))
-            }
+    let tasks: Vec<ListItem> = store.tasks.iter()
+        .filter(|t| match app.roadmap_filter {
+            TaskStatusFilter::All => true,
+            TaskStatusFilter::Pending => t.status == TaskStatus::Pending,
+            TaskStatusFilter::Done => matches!(t.status, TaskStatus::Done | TaskStatus::NoTest),
         })
-        .collect();
-
-    let block = Block::default().borders(Borders::ALL).title(" [ FLIGHT PLAN ] ");
-    let list = List::new(items)
-        .block(block)
-        .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
-
-    let mut state = ListState::default();
-    state.select(Some(app.selected_task));
-    f.render_stateful_widget(list, area, &mut state);
-}
-
-fn draw_context(f: &mut Frame, app: &mut DashboardApp, area: Rect) {
-    let items: Vec<ListItem> = app
-        .context_items
-        .iter()
-        .map(|item| {
-            let path = item.path.to_string_lossy();
-            let tokens = item.tokens;
-            
-            // Heatmap Coloring
-            let color = if tokens > 1500 {
-                Color::Red
-            } else if tokens > 500 {
-                Color::Yellow
+        .map(|t| {
+            let style = if t.status == TaskStatus::Done {
+                Style::default().fg(Color::Green)
             } else {
-                Color::Green
+                Style::default()
             };
-
-            let text = format!("{path:<50} {tokens:>5} toks");
-            ListItem::new(text).style(Style::default().fg(color))
+            let prefix = match t.status {
+                TaskStatus::Done | TaskStatus::NoTest => "[x]",
+                TaskStatus::Pending => "[ ]",
+            };
+            ListItem::new(format!("{} {}", prefix, t.text)).style(style)
         })
         .collect();
 
-    let block = Block::default().borders(Borders::ALL).title(" [ CONTEXT EXPLORER ] ");
-    let list = List::new(items)
-        .block(block)
-        .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
+    let list = List::new(tasks)
+        .block(Block::default().borders(Borders::ALL).title("Roadmap Tasks"))
+        .highlight_style(Style::default().bg(Color::DarkGray));
 
-    let mut state = ListState::default();
-    state.select(Some(app.selected_file));
-    f.render_stateful_widget(list, area, &mut state);
+    f.render_widget(list, area);
 }
 
-fn draw_checks(f: &mut Frame, app: &DashboardApp, area: Rect) {
-    let status_color = if app.check_running { Color::Yellow } else { Color::Green };
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(status_color))
-        .title(if app.check_running { " [ RUNNING ] " } else { " [ IDLE ] " });
-
-    let text = app.check_logs.join("\n");
-    let p = Paragraph::new(text).block(block).scroll((app.scroll, 0));
-    f.render_widget(p, area);
+fn draw_config(f: &mut Frame, app: &mut DashboardApp, area: Rect) {
+    crate::tui::config::view::draw_embed(f, &app.config_editor, area);
 }
 
 fn draw_logs(f: &mut Frame, app: &DashboardApp, area: Rect) {
-    let block = Block::default().borders(Borders::ALL).title(" [ SYSTEM LOGS ] ");
-    let text = app.system_logs.join("\n");
-    let p = Paragraph::new(text).block(block).scroll((app.scroll, 0));
+    let logs: Vec<ListItem> = app.logs.iter()
+        .rev()
+        .map(|s| ListItem::new(Line::from(s.as_str())))
+        .collect();
+
+    let list = List::new(logs)
+        .block(Block::default().borders(Borders::ALL).title("System Logs"));
+    f.render_widget(list, area);
+}
+
+fn draw_logs_mini(f: &mut Frame, app: &DashboardApp, area: Rect) {
+     let logs: Vec<ListItem> = app.logs.iter()
+        .rev()
+        .take(10)
+        .map(|s| ListItem::new(Line::from(s.as_str())))
+        .collect();
+
+    let list = List::new(logs)
+        .block(Block::default().borders(Borders::ALL).title("Recent Activity"));
+    f.render_widget(list, area);
+}
+
+fn draw_footer(f: &mut Frame, area: Rect) {
+    let text = "q: Quit | TAB: Switch View | r: Reload";
+    let p = Paragraph::new(text).style(Style::default().fg(Color::DarkGray));
     f.render_widget(p, area);
 }
-
-fn draw_footer(f: &mut Frame, app: &DashboardApp, area: Rect) {
-    let mut controls = vec![
-        Span::raw(" [1-5] Navigate | "),
-        Span::styled(" [q] Quit ", Style::default().add_modifier(Modifier::BOLD)),
-    ];
-
-    match app.active_tab {
-        Tab::Roadmap => controls.insert(1, Span::raw(" [j/k] Select | [SPACE] Toggle | ")),
-        Tab::Checks => controls.insert(1, Span::raw(" [r] Run | [c] Clear | ")),
-        Tab::Context => controls.insert(1, Span::raw(" [j/k] Select | [c] Copy | ")),
-        _ => {}
-    }
-
-    f.render_widget(
-        Paragraph::new(Line::from(controls))
-            .block(Block::default().borders(Borders::ALL))
-            .alignment(Alignment::Center),
-        area,
-    );
-}
-
-fn draw_popup(f: &mut Frame, area: Rect) {
-    let popup_area = centered_rect(60, 20, area);
-    f.render_widget(Clear, popup_area);
-
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(" ?? INCOMING PAYLOAD ")
-        .style(Style::default().bg(Color::DarkGray).fg(Color::White));
-
-    let content = "SlopChop Protocol detected in clipboard.\n\nApply changes?\n\n[y] Apply & Verify\n[n] Discard";
-    let p = Paragraph::new(content).block(block).alignment(Alignment::Center);
-    f.render_widget(p, popup_area);
-}
-
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
-}

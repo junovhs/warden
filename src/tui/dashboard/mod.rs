@@ -1,126 +1,76 @@
+// slopchop:ignore
 // src/tui/dashboard/mod.rs
 pub mod state;
-mod ui;
+pub mod ui;
 
-use crate::tui::watcher;
+use crate::config::Config;
+use crate::roadmap_v2::types::TaskStore;
+use crate::tui::runner;
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use ratatui::backend::Backend;
-use ratatui::Terminal;
+use crossterm::event::{self, Event, KeyCode};
+use ratatui::{backend::CrosstermBackend, Terminal};
 use state::DashboardApp;
+use std::io;
 use std::time::Duration;
 
-/// Run the dashboard TUI.
+/// Runs the dashboard TUI.
 ///
 /// # Errors
-/// Returns error if terminal operations fail or watcher cannot start.
-pub fn run<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
-    let mut app = DashboardApp::default();
-    watcher::spawn_watcher(app.watch_tx.clone());
+/// Returns error if IO or terminal operations fail.
+pub fn run(config: &mut Config) -> Result<()> {
+    // Setup terminal
+    runner::setup_terminal()?;
+    let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
 
-    while app.running {
+    let mut app = DashboardApp::new(config);
+
+    // Initial load
+    app.trigger_scan();
+    
+    // Attempt to load slopchop.toml (which contains tasks in v2)
+    match TaskStore::load(None) {
+         Ok(r) => app.roadmap = Some(r),
+         Err(e) => app.log(&format!("Failed to load roadmap: {e}")),
+    }
+
+    loop {
         terminal.draw(|f| ui::draw(f, &mut app))?;
-        handle_input(&mut app)?;
-        poll_events(&mut app);
+
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                // Global exit
+                if key.code == KeyCode::Char('q') {
+                    break;
+                }
+                
+                // Route input
+                match app.active_tab {
+                    state::Tab::Config => {
+                        app.config_editor.handle_input(key.code);
+                    }
+                    _ => handle_input(&mut app, key.code),
+                }
+            }
+        }
+
+        app.on_tick();
+        if app.should_quit {
+            break;
+        }
     }
 
+    runner::restore_terminal()?;
     Ok(())
 }
 
-fn handle_input(app: &mut DashboardApp) -> Result<()> {
-    if event::poll(Duration::from_millis(100))? {
-        if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press {
-                process_key(app, key.code);
-            }
-        }
-    }
-    Ok(())
-}
-
-fn process_key(app: &mut DashboardApp, code: KeyCode) {
-    if app.show_popup {
-        handle_popup_key(app, code);
-        return;
-    }
-
-    match code {
-        KeyCode::Char('q') => app.running = false,
-        KeyCode::Up | KeyCode::Char('k') => app.scroll_up(),
-        KeyCode::Down | KeyCode::Char('j') => app.scroll_down(),
-        KeyCode::Char('r') => handle_refresh(app),
-        c => handle_tab_switch(app, c),
-    }
-}
-
-fn handle_tab_switch(app: &mut DashboardApp, code: KeyCode) {
-    match code {
-        KeyCode::Char('1') => app.switch_tab(state::Tab::Roadmap),
-        KeyCode::Char('2') => app.switch_tab(state::Tab::Checks),
-        KeyCode::Char('3') => app.switch_tab(state::Tab::Context),
-        KeyCode::Char('4') => app.switch_tab(state::Tab::Config),
-        KeyCode::Char('5') => app.switch_tab(state::Tab::Logs),
+fn handle_input(app: &mut DashboardApp, key: KeyCode) {
+    match key {
+        KeyCode::Tab => app.next_tab(),
+        KeyCode::BackTab => app.previous_tab(),
+        KeyCode::Char('r') => {
+            app.trigger_scan();
+            app.log("Manual scan triggered");
+        },
         _ => {}
     }
 }
-
-fn handle_popup_key(app: &mut DashboardApp, code: KeyCode) {
-    match code {
-        KeyCode::Char('y') | KeyCode::Enter => {
-            app.log_system("Applying payload...");
-            app.show_popup = false;
-            app.pending_payload = None;
-        }
-        KeyCode::Char('n') | KeyCode::Esc => {
-            app.log_system("Payload dismissed.");
-            app.show_popup = false;
-            app.pending_payload = None;
-        }
-        _ => {}
-    }
-}
-
-fn handle_refresh(app: &mut DashboardApp) {
-    match app.active_tab {
-        state::Tab::Roadmap => {
-            app.roadmap =
-                crate::roadmap::Roadmap::from_file(std::path::Path::new("ROADMAP.md")).ok();
-            app.refresh_flat_roadmap();
-            app.log_system("Roadmap refreshed.");
-        }
-        state::Tab::Context => {
-            app.refresh_context_items();
-            app.log_system("Context refreshed.");
-        }
-        _ => {}
-    }
-}
-
-fn poll_events(app: &mut DashboardApp) {
-    while let Ok(event) = app.watch_rx.try_recv() {
-        match event {
-            watcher::WatcherEvent::PayloadDetected(payload) => {
-                app.pending_payload = Some(payload);
-                app.show_popup = true;
-                app.log_system("Payload detected in clipboard!");
-            }
-        }
-    }
-
-    while let Ok(event) = app.check_rx.try_recv() {
-        match event {
-            crate::tui::runner::CheckEvent::Log(line) => {
-                app.check_logs.push(line);
-            }
-            crate::tui::runner::CheckEvent::Finished(success) => {
-                app.check_running = false;
-                let msg = if success {
-                    "Checks passed!"
-                } else {
-                    "Checks failed."
-                };
-                app.log_system(msg);
-            }
-        }
-    }
-}

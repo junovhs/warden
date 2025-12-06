@@ -104,4 +104,29 @@ pub fn truncate(s: &str, max_chars: usize) -> String {
         let truncated: String = s.chars().take(max_chars).collect();
         format!("{truncated}...")
     }
-}
+}
+
+/// Converts text to a URL-friendly slug.
+/// e.g. "Fix the auth bug" -> "fix-the-auth-bug"
+#[must_use]
+pub fn slugify(input: &str) -> String {
+    let mut slug = String::new();
+    let mut prev_dash = false;
+
+    for c in input.chars() {
+        if c.is_alphanumeric() {
+            slug.push(c.to_ascii_lowercase());
+            prev_dash = false;
+        } else if !prev_dash && !slug.is_empty() {
+            slug.push('-');
+            prev_dash = true;
+        }
+    }
+
+    // Trim trailing dash if present
+    if slug.ends_with('-') {
+        slug.pop();
+    }
+
+    slug
+}

@@ -6,61 +6,34 @@ pub mod state;
 pub mod view;
 pub mod watcher;
 
-use anyhow::Result;
-use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
-use ratatui::backend::CrosstermBackend;
-use ratatui::Terminal;
-use std::io;
+use crate::config::Config;
+use crate::error::Result;
 
-/// Run the dashboard TUI.
+/// Runs the TUI application.
 ///
 /// # Errors
-/// Returns error if terminal setup fails.
-pub fn run_dashboard() -> Result<()> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let res = dashboard::run(&mut terminal);
-
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    res
+/// Returns error if TUI execution fails or IO error occurs.
+pub fn run(config: &mut Config) -> Result<()> {
+    // Map anyhow::Result to crate::error::Result
+    dashboard::run(config).map_err(|e| crate::error::SlopChopError::from(std::io::Error::other(
+        e.to_string(),
+    )))
 }
 
-/// Run the config TUI.
+/// Runs the configuration TUI.
 ///
 /// # Errors
-/// Returns error if terminal setup fails.
+/// Returns error if TUI setup or execution fails.
 pub fn run_config() -> Result<()> {
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
+    runner::setup_terminal().map_err(|e| crate::error::SlopChopError::Other(e.to_string()))?;
+    
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))
+        .map_err(|e| crate::error::SlopChopError::Other(e.to_string()))?;
+        
     let mut app = config::state::ConfigApp::new();
     let res = app.run(&mut terminal);
-
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
-    terminal.show_cursor()?;
-
-    res
-}
+    
+    runner::restore_terminal().map_err(|e| crate::error::SlopChopError::Other(e.to_string()))?;
+    
+    res.map_err(|e| crate::error::SlopChopError::Other(e.to_string()))
+}

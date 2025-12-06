@@ -103,7 +103,8 @@ fn main() {
 fn run() -> Result<()> {
     let cli = Cli::parse();
     if cli.init {
-        return wizard::run();
+        wizard::run()?;
+        return Ok(());
     }
     ensure_config_exists();
     dispatch(&cli)
@@ -137,25 +138,43 @@ fn dispatch_command(cmd: &Commands) -> Result<()> {
 fn dispatch_maintenance(cmd: &Commands) -> Result<()> {
     match cmd {
         Commands::Check => {
-            cli::handle_check();
+            cli::handle_check()?;
             Ok(())
         }
         Commands::Fix => {
-            cli::handle_fix();
+            cli::handle_fix()?;
             Ok(())
         }
-        Commands::Config => slopchop_core::tui::run_config(),
-        Commands::Dashboard => cli::handle_dashboard(),
-        Commands::Clean { commit } => slopchop_core::clean::run(*commit),
+        Commands::Config => {
+            slopchop_core::tui::run_config()?;
+            Ok(())
+        }
+        Commands::Dashboard => {
+            cli::handle_dashboard()?;
+            Ok(())
+        }
+        Commands::Clean { commit } => {
+            slopchop_core::clean::run(*commit)?;
+            Ok(())
+        }
         _ => unreachable!(),
     }
 }
 
 fn dispatch_tools(cmd: &Commands) -> Result<()> {
     match cmd {
-        Commands::Apply => cli::handle_apply(),
-        Commands::Prompt { copy } => cli::handle_prompt(*copy),
-        Commands::Roadmap(sub) => handle_command(sub.clone()),
+        Commands::Apply => {
+            cli::handle_apply()?;
+            Ok(())
+        }
+        Commands::Prompt { copy } => {
+            cli::handle_prompt(*copy)?;
+            Ok(())
+        }
+        Commands::Roadmap(sub) => {
+            handle_command(sub.clone())?;
+            Ok(())
+        }
         _ => unreachable!(),
     }
 }
@@ -166,9 +185,18 @@ fn dispatch_analysis(cmd: &Commands) -> Result<()> {
             file,
             depth,
             budget,
-        } => cli::handle_trace(file, *depth, *budget),
-        Commands::Map { deps } => cli::handle_map(*deps),
-        Commands::Context { verbose, copy } => cli::handle_context(*verbose, *copy),
+        } => {
+            cli::handle_trace(file, *depth, *budget)?;
+            Ok(())
+        }
+        Commands::Map { deps } => {
+            cli::handle_map(*deps)?;
+            Ok(())
+        }
+        Commands::Context { verbose, copy } => {
+            cli::handle_context(*verbose, *copy)?;
+            Ok(())
+        }
         Commands::Pack { .. } => dispatch_pack(cmd),
         _ => unreachable!(),
     }
@@ -203,10 +231,9 @@ fn dispatch_pack(cmd: &Commands) -> Result<()> {
             target: target.clone(),
             focus: focus.clone(),
             depth: *depth,
-        })
-    } else {
-        Ok(())
+        })?;
     }
+    Ok(())
 }
 
 fn run_scan() -> Result<()> {
@@ -236,7 +263,8 @@ fn run_tui() -> Result<()> {
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let mut term = Terminal::new(CrosstermBackend::new(stdout))?;
 
-    let res = App::new(report).run(&mut term);
+    let mut app = App::new(report);
+    let _ = app.run(&mut term);
 
     disable_raw_mode()?;
     execute!(
@@ -245,7 +273,7 @@ fn run_tui() -> Result<()> {
         DisableMouseCapture
     )?;
     term.show_cursor()?;
-    res
+    Ok(())
 }
 
 fn load_config() -> Config {
@@ -261,6 +289,6 @@ fn ensure_config_exists() {
     let proj = project::ProjectType::detect();
     let content = project::generate_toml(proj, project::Strictness::Standard);
     if fs::write("slopchop.toml", &content).is_ok() {
-        eprintln!("{}", "? Created slopchop.toml".dimmed());
+        eprintln!("{}", "✓ Created slopchop.toml".dimmed());
     }
 }

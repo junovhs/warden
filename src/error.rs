@@ -38,3 +38,10 @@ impl From<walkdir::Error> for SlopChopError {
         SlopChopError::Other(e.to_string())
     }
 }
+
+// Generic error conversion for Anyhow (used by some libraries/refactors)
+impl From<anyhow::Error> for SlopChopError {
+    fn from(e: anyhow::Error) -> Self {
+        SlopChopError::Other(e.to_string())
+    }
+}
